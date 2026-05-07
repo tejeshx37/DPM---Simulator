@@ -28,6 +28,8 @@ function = { path = "function" }
 approx = "0.5.1"
 puffin = "0.19.0"
 mesh = { path = "mesh" }
+rand = "0.8.5"
+rand_pcg = "0.3.1"
 
 [profile.prod]
 inherits = "release"

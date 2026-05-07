@@ -2,10 +2,190 @@ use cgal::{curve::Curve, triangulation, BoundaryId, PolygonWithHoles};
 use derive_getters::Getters;
 use fxhash::{FxHashMap, FxHashSet};
 use nalgebra::Vector3;
+use rand::{Rng, SeedableRng};
+use rand_pcg::Pcg64;
 use rayon::prelude::*;
 use std::iter;
 
 const ASPECT_BOUND: f64 = 0.125;
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeedingPattern {
+    Grid,
+    Hexagonal,
+    Fibonacci,
+    Random,
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub enum Region {
+    BoundingBox { min: Vector3<f64>, max: Vector3<f64> },
+    PolygonZone { points: Vec<[f64; 2]> },
+    SDF { center: Vector3<f64>, radius: f64 },
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct SeedingStrategy {
+    pub pattern: SeedingPattern,
+    pub density: f64, // points per unit volume
+    pub radius: f64,  // individual particle radius (if applicable)
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct SeedingRegion {
+    pub region: Region,
+    pub strategy: SeedingStrategy,
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct SeedingConfig {
+    pub regions: Vec<SeedingRegion>,
+    pub default_strategy: Option<SeedingStrategy>,
+}
+
+impl Region {
+    pub fn contains(&self, p: &Vector3<f64>) -> bool {
+        match self {
+            Region::BoundingBox { min, max } => {
+                p.x >= min.x && p.x <= max.x &&
+                p.y >= min.y && p.y <= max.y &&
+                p.z >= min.z && p.z <= max.z
+            }
+            Region::PolygonZone { points } => {
+                is_inside_point_list(p, points)
+            }
+            Region::SDF { center, radius } => {
+                (p - center).norm_squared() <= radius * radius
+            }
+        }
+    }
+
+    pub fn bounds(&self) -> (Vector3<f64>, Vector3<f64>) {
+        match self {
+            Region::BoundingBox { min, max } => (*min, *max),
+            Region::PolygonZone { points } => {
+                let mut min_x = f64::MAX;
+                let mut max_x = f64::MIN;
+                let mut min_y = f64::MAX;
+                let mut max_y = f64::MIN;
+                for p in points {
+                    min_x = min_x.min(p[0]);
+                    max_x = max_x.max(p[0]);
+                    min_y = min_y.min(p[1]);
+                    max_y = max_y.max(p[1]);
+                }
+                (Vector3::new(min_x, min_y, 0.0), Vector3::new(max_x, max_y, f64::MAX))
+            }
+            Region::SDF { center, radius } => {
+                let r_vec = Vector3::new(*radius, *radius, *radius);
+                (center - r_vec, center + r_vec)
+            }
+        }
+    }
+}
+
+impl SeedingStrategy {
+    pub fn generate_points(&self, bounds_min: Vector3<f64>, bounds_max: Vector3<f64>) -> Vec<Vector3<f64>> {
+        let mut points = Vec::new();
+        let dx = bounds_max.x - bounds_min.x;
+        let dy = bounds_max.y - bounds_min.y;
+        let dz = (bounds_max.z - bounds_min.z).max(1e-6);
+        let volume = dx * dy * dz;
+        let target_count = (volume * self.density).ceil() as usize;
+
+        if target_count == 0 { return points; }
+
+        match self.pattern {
+            SeedingPattern::Grid => {
+                let h = (1.0 / self.density).powf(1.0/3.0);
+                let nx = (dx / h).ceil() as usize;
+                let ny = (dy / h).ceil() as usize;
+                let nz = (dz / h).ceil() as usize;
+                for ix in 0..=nx {
+                    for iy in 0..=ny {
+                        for iz in 0..=nz {
+                            points.push(Vector3::new(
+                                bounds_min.x + (ix as f64 / (nx as f64).max(1.0)) * dx,
+                                bounds_min.y + (iy as f64 / (ny as f64).max(1.0)) * dy,
+                                bounds_min.z + (iz as f64 / (nz as f64).max(1.0)) * dz,
+                            ));
+                        }
+                    }
+                }
+            }
+            SeedingPattern::Hexagonal => {
+                let d = (std::f64::consts::SQRT_2 / self.density).powf(1.0/3.0);
+                let dx_step = d;
+                let dy_step = d * 3.0f64.sqrt() / 2.0;
+                let dz_step = d * (2.0f64 / 3.0f64).sqrt();
+
+                let nx = (dx / dx_step).ceil() as usize;
+                let ny = (dy / dy_step).ceil() as usize;
+                let nz = (dz / dz_step).ceil() as usize;
+
+                for iz in 0..=nz {
+                    let z = bounds_min.z + iz as f64 * dz_step;
+                    for iy in 0..=ny {
+                        let y = bounds_min.y + iy as f64 * dy_step;
+                        for ix in 0..=nx {
+                            let mut x = bounds_min.x + ix as f64 * dx_step;
+                            if iy % 2 == 1 { x += dx_step / 2.0; }
+                            if iz % 2 == 1 { x += dx_step / 2.0; }
+                            points.push(Vector3::new(x, y, z));
+                        }
+                    }
+                }
+            }
+            SeedingPattern::Fibonacci => {
+                let golden_ratio = (1.0 + 5.0f64.sqrt()) / 2.0;
+                for i in 0..target_count {
+                    let x = (i as f64 / golden_ratio) % 1.0;
+                    let y = (i as f64 / golden_ratio.powi(2)) % 1.0;
+                    let z = i as f64 / target_count as f64;
+                    points.push(Vector3::new(
+                        bounds_min.x + x * dx,
+                        bounds_min.y + y * dy,
+                        bounds_min.z + z * dz,
+                    ));
+                }
+            }
+            SeedingPattern::Random => {
+                let mut rng = Pcg64::seed_from_u64(42);
+                for _ in 0..target_count {
+                    points.push(Vector3::new(
+                        bounds_min.x + rng.gen::<f64>() * dx,
+                        bounds_min.y + rng.gen::<f64>() * dy,
+                        bounds_min.z + rng.gen::<f64>() * dz,
+                    ));
+                }
+            }
+        }
+        points
+    }
+}
+
+fn is_inside_point_list(p: &Vector3<f64>, points: &[[f64; 2]]) -> bool {
+    let mut winding_number = 0;
+    let px = p.x;
+    let py = p.y;
+    for i in 0..points.len() {
+        let p1 = &points[i];
+        let p2 = &points[(i + 1) % points.len()];
+        if p1[1] <= py {
+            if p2[1] > py && (p2[0] - p1[0]) * (py - p1[1]) - (px - p1[0]) * (p2[1] - p1[1]) > 0.0 {
+                winding_number += 1;
+            }
+        } else if p2[1] <= py && (p2[0] - p1[0]) * (py - p1[1]) - (px - p1[0]) * (p2[1] - p1[1]) < 0.0 {
+            winding_number -= 1;
+        }
+    }
+    winding_number != 0
+}
 
 pub type PointIdxToIdsMap = FxHashMap<usize, FxHashSet<BoundaryId>>;
 pub type BoundaryIdToCountMap = FxHashMap<BoundaryId, FxHashSet<usize>>;
@@ -112,6 +292,7 @@ impl Mesh {
         size_bound_override: Option<f64>,
         thickness: f64,
         primitive: Option<&cgal::PolygonSetInputKind>,
+        seeding_config: Option<SeedingConfig>,
         mut state_callback: Callback,
     ) -> Result<Self, String> {
         state_callback.invoke(State::Init);
@@ -131,7 +312,7 @@ impl Mesh {
             }
         }
 
-        let num_points = num_points as f64;
+        let num_points_f = num_points as f64;
         let total_perimeter: f64 = polygon
             .boundaries_iter()
             .map(|(_, curve)| curve.length())
@@ -141,7 +322,7 @@ impl Mesh {
             return Err(String::from("Polygon has zero perimeter. Cannot generate mesh."));
         }
 
-        let size_bound = size_bound_override.unwrap_or(total_perimeter / num_points);
+        let size_bound = size_bound_override.unwrap_or(total_perimeter / num_points_f);
         if !size_bound.is_finite() || size_bound <= 0.0 {
              return Err(String::from("Invalid size bound calculated. Check your point count."));
         }
@@ -153,7 +334,7 @@ impl Mesh {
             .map(|(boundary_id, curve)| {
                 (
                     boundary_id,
-                    Constraint::create(curve, num_points, total_perimeter),
+                    Constraint::create(curve, num_points_f, total_perimeter),
                 )
             })
             .collect();
@@ -165,42 +346,78 @@ impl Mesh {
             .collect();
 
         // --- Volumetric Internal Points ---
-        // Calculate 2D bounding box
-        let mut min_x = f64::MAX;
-        let mut max_x = f64::MIN;
-        let mut min_y = f64::MAX;
-        let mut max_y = f64::MIN;
-        for p in &point_cloud {
-            min_x = min_x.min(p.x);
-            max_x = max_x.max(p.x);
-            min_y = min_y.min(p.y);
-            max_y = max_y.max(p.y);
-        }
+        if let Some(config) = seeding_config {
+            for seeding_region in &config.regions {
+                let (mut b_min, mut b_max) = seeding_region.region.bounds();
+                // Clamp bounds to thickness
+                b_min.z = b_min.z.max(0.0);
+                b_max.z = b_max.z.min(thickness);
+                
+                let points = seeding_region.strategy.generate_points(b_min, b_max);
+                for p in points {
+                    if seeding_region.region.contains(&p) && is_inside_polygon(&p, polygon) {
+                        point_cloud.push(p);
+                    }
+                }
+            }
+            if let Some(default_strategy) = config.default_strategy {
+                let mut min_x = f64::MAX;
+                let mut max_x = f64::MIN;
+                let mut min_y = f64::MAX;
+                let mut max_y = f64::MIN;
+                for p in &point_cloud {
+                    min_x = min_x.min(p.x);
+                    max_x = max_x.max(p.x);
+                    min_y = min_y.min(p.y);
+                    max_y = max_y.max(p.y);
+                }
+                let b_min = Vector3::new(min_x, min_y, 0.0);
+                let b_max = Vector3::new(max_x, max_y, thickness);
+                let points = default_strategy.generate_points(b_min, b_max);
+                for p in points {
+                    if is_inside_polygon(&p, polygon) && !config.regions.iter().any(|r| r.region.contains(&p)) {
+                        point_cloud.push(p);
+                    }
+                }
+            }
+        } else {
+            // Default seeding logic
+            let mut min_x = f64::MAX;
+            let mut max_x = f64::MIN;
+            let mut min_y = f64::MAX;
+            let mut max_y = f64::MIN;
+            for p in &point_cloud {
+                min_x = min_x.min(p.x);
+                max_x = max_x.max(p.x);
+                min_y = min_y.min(p.y);
+                max_y = max_y.max(p.y);
+            }
 
-        let dx = max_x - min_x;
-        let dy = max_y - min_y;
-        
-        if dx > 0.0 && dy > 0.0 && thickness > 0.0 {
-            // Determine grid resolution based on num_points
-            let volume = dx * dy * thickness;
-            let target_internal = (num_points as f64 * 0.7) as usize; // reserve 70% for internal
-            let cell_volume = volume / target_internal as f64;
-            let h = cell_volume.powf(1.0/3.0);
+            let dx = max_x - min_x;
+            let dy = max_y - min_y;
             
-            let nx = (dx / h).ceil() as usize;
-            let ny = (dy / h).ceil() as usize;
-            let nz = (thickness / h).ceil() as usize;
-            
-            for ix in 0..=nx {
-                for iy in 0..=ny {
-                    let x = min_x + (ix as f64 / nx as f64) * dx;
-                    let y = min_y + (iy as f64 / ny as f64) * dy;
-                    let p_check = Vector3::new(x, y, 0.0);
-                    
-                    if is_inside_polygon(&p_check, polygon) {
-                        for iz in 0..=nz {
-                            let z = (iz as f64 / nz as f64) * thickness;
-                            point_cloud.push(Vector3::new(x, y, z));
+            if dx > 0.0 && dy > 0.0 && thickness > 0.0 {
+                // Determine grid resolution based on num_points
+                let volume = dx * dy * thickness;
+                let target_internal = (num_points as f64 * 0.7) as usize; // reserve 70% for internal
+                let cell_volume = volume / target_internal as f64;
+                let h = cell_volume.powf(1.0/3.0);
+                
+                let nx = (dx / h).ceil() as usize;
+                let ny = (dy / h).ceil() as usize;
+                let nz = (thickness / h).ceil() as usize;
+                
+                for ix in 0..=nx {
+                    for iy in 0..=ny {
+                        let x = min_x + (ix as f64 / nx as f64) * dx;
+                        let y = min_y + (iy as f64 / ny as f64) * dy;
+                        let p_check = Vector3::new(x, y, 0.0);
+                        
+                        if is_inside_polygon(&p_check, polygon) {
+                            for iz in 0..=nz {
+                                let z = (iz as f64 / nz as f64) * thickness;
+                                point_cloud.push(Vector3::new(x, y, z));
+                            }
                         }
                     }
                 }
@@ -591,6 +808,7 @@ mod tests {
             None,
             1.0,
             None,
+            None,
             Callback::from(|state| states.push(state))
         )
         .is_ok());
@@ -605,5 +823,52 @@ mod tests {
         ];
 
         assert_eq!(states, expected_states);
+    }
+
+    #[test]
+    fn test_seeding_patterns() {
+        use super::{SeedingPattern, SeedingStrategy};
+        let strategy = SeedingStrategy {
+            pattern: SeedingPattern::Grid,
+            density: 100.0,
+            radius: 0.1,
+        };
+        let points = strategy.generate_points(Vector3::zeros(), Vector3::new(1.0, 1.0, 1.0));
+        assert!(points.len() >= 100);
+
+        let strategy_hex = SeedingStrategy {
+            pattern: SeedingPattern::Hexagonal,
+            density: 100.0,
+            radius: 0.1,
+        };
+        let points_hex = strategy_hex.generate_points(Vector3::zeros(), Vector3::new(1.0, 1.0, 1.0));
+        assert!(points_hex.len() > 0);
+
+        let strategy_fib = SeedingStrategy {
+            pattern: SeedingPattern::Fibonacci,
+            density: 100.0,
+            radius: 0.1,
+        };
+        let points_fib = strategy_fib.generate_points(Vector3::zeros(), Vector3::new(1.0, 1.0, 1.0));
+        assert_eq!(points_fib.len(), 100);
+    }
+
+    #[test]
+    fn test_regions() {
+        use super::{Region};
+        let box_region = Region::BoundingBox {
+            min: Vector3::zeros(),
+            max: Vector3::new(1.0, 1.0, 1.0),
+        };
+        assert!(box_region.contains(&Vector3::new(0.5, 0.5, 0.5)));
+        assert!(!box_region.contains(&Vector3::new(1.5, 0.5, 0.5)));
+
+        let sdf_region = Region::SDF {
+            center: Vector3::new(0.5, 0.5, 0.5),
+            radius: 0.5,
+        };
+        assert!(sdf_region.contains(&Vector3::new(0.5, 0.5, 0.5)));
+        assert!(sdf_region.contains(&Vector3::new(0.7, 0.7, 0.7))); // Dist is sqrt(0.04*3) = 0.346 < 0.5
+        assert!(!sdf_region.contains(&Vector3::new(0.8, 0.8, 0.8)));
     }
 }

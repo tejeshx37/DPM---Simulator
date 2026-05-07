@@ -10,6 +10,8 @@ serde = { workspace = true, optional = true }
 fxhash.workspace = true
 rayon.workspace = true
 derive-getters.workspace = true
+rand.workspace = true
+rand_pcg.workspace = true
 
 [dev-dependencies]
 test-case.workspace = true

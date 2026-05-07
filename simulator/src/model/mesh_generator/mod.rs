@@ -3,7 +3,7 @@ use super::{
     state_channel, PolygonData, RefreshToken,
 };
 use cgal::{PolygonSet, PolygonSetInput};
-use mesh::{Callback, Mesh};
+use mesh::{Callback, Mesh, SeedingConfig};
 use std::{
     sync::{mpsc, Arc},
     thread::{self, JoinHandle},
@@ -80,6 +80,7 @@ impl<T: RefreshToken> MeshGenerator<T> {
         num_points: u32,
         size_bound_override: Option<f64>,
         thickness: f64,
+        seeding_config: Option<SeedingConfig>,
     ) -> Result<(), String> {
         if num_points == 0 {
             return Err(String::from("Number of points must be greater than 0"));
@@ -92,6 +93,7 @@ impl<T: RefreshToken> MeshGenerator<T> {
             num_points,
             size_bound_override,
             thickness,
+            seeding_config,
         }));
         Ok(())
     }
@@ -109,6 +111,7 @@ struct Input {
     num_points: u32,
     size_bound_override: Option<f64>,
     thickness: f64,
+    seeding_config: Option<SeedingConfig>,
 }
 
 #[derive(Debug)]
@@ -213,6 +216,7 @@ impl<T: RefreshToken> Worker<T> {
                 input.size_bound_override,
                 input.thickness,
                 primitive,
+                input.seeding_config,
                 Callback::from(|state| send_state_discard_err!(State::GeneratingMesh(state))),
             );
             match result {
