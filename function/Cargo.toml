@@ -1,0 +1,12 @@
+[package]
+name = "function"
+version = "0.2.0"
+edition.workspace = true
+
+[dependencies]
+typed-builder.workspace = true
+derive-getters.workspace = true
+serde = { workspace = true, optional = true }
+
+[features]
+serde = ["dep:serde"]

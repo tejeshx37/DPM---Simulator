@@ -1,0 +1,12 @@
+/Users/mtejeshx37/dpm/target/debug/deps/pot-2995320cb8498e9c.d: /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/lib.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/de.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/error.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/format.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/reader.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/ser.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/value.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/../crate-docs.md
+
+/Users/mtejeshx37/dpm/target/debug/deps/libpot-2995320cb8498e9c.rmeta: /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/lib.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/de.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/error.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/format.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/reader.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/ser.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/value.rs /Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/../crate-docs.md
+
+/Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/lib.rs:
+/Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/de.rs:
+/Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/error.rs:
+/Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/format.rs:
+/Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/reader.rs:
+/Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/ser.rs:
+/Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/value.rs:
+/Users/mtejeshx37/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pot-3.0.0/src/../crate-docs.md:

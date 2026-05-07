@@ -1,0 +1,28 @@
+[package]
+# Continuum interaction Particle Dynamics
+name = "cpd"
+version = "0.32.0"
+edition.workspace = true
+
+[dependencies]
+cgal.workspace = true
+rayon.workspace = true
+nalgebra.workspace = true
+rand = "0.8.5"
+rand_distr = "0.4.3"
+serde = { workspace = true, optional = true }
+typed-builder.workspace = true
+derive-getters.workspace = true
+sealed.workspace = true
+fxhash.workspace = true
+function.workspace = true
+cpd-wgpu = { path = "../cpd-wgpu", optional = true }
+
+[features]
+gpu = ["dep:cpd-wgpu"]
+serde = [
+    "dep:serde",
+    "nalgebra/serde-serialize",
+    "function/serde",
+    "cgal/serde",
+]

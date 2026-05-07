@@ -1,0 +1,18 @@
+[package]
+name = "mesh"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+cgal.workspace = true
+nalgebra.workspace = true
+serde = { workspace = true, optional = true }
+fxhash.workspace = true
+rayon.workspace = true
+derive-getters.workspace = true
+
+[dev-dependencies]
+test-case.workspace = true
+
+[features]
+serde = ["dep:serde", "nalgebra/serde-serialize"]
