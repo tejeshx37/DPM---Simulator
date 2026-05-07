@@ -443,6 +443,7 @@ impl Computer<InProgress> {
         let iterations = self.state.iterations;
         let damping = *config.material_props().bulk_props().damping();
         let time_delta = config.time_delta().as_secs_f32();
+        let body_force = *config.body_force();
         
         #[cfg(feature = "gpu")]
         let mut session_opt = self.state.gpu_session.take();
@@ -470,6 +471,7 @@ impl Computer<InProgress> {
                     iterations,
                     damping,
                     time_delta,
+                    body_force,
                 )
             });
         

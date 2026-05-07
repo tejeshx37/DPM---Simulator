@@ -24,7 +24,8 @@ fn main() {
         Some(&PolygonSetInputKind::Sphere {
             center: RationalPoint::new(0, 0),
             radius: 1.into(),
-        }), 
+        }),
+        None,
         Callback::None
     ).unwrap();
     
@@ -61,7 +62,7 @@ fn main() {
     
     println!("Advancing 10 steps...");
     for i in 0..10 {
-        match computer.advance() {
+        match computer.advance(true) {
             AdvanceResult::InProgress(c) => {
                 computer = c;
                 let max_coord = computer.export_data().nodes().iter()

@@ -91,6 +91,7 @@ fn main() {
         None,
         1.0,
         Some(&sphere_kind),
+        None,
         Callback::None,
     )
     .expect("Mesh generation failed");
@@ -202,7 +203,7 @@ fn main() {
     let mut step = 0usize;
 
     loop {
-        match computer.advance() {
+        match computer.advance(true) {
             AdvanceResult::InProgress(c) => {
                 step += 1;
                 if step % report_every == 0 || step == 1 {

@@ -14,10 +14,11 @@ fn test_mesh_size() {
     let mesh = Mesh::generate(
         poly, 
         512, 
-        None, 
-        1.0, 
-        Some(&sphere), 
-        Callback::None
+        None,
+        1.0,
+        None,
+        None,
+        mesh::Callback::None,
     ).unwrap();
     
     println!("Nodes: {}, Elements: {}", mesh.triangulation_data().vertices().len(), mesh.triangulation_data().faces().len());

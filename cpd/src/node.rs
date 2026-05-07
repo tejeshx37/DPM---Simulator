@@ -62,6 +62,7 @@ impl Node {
         iterations: u128,
         damping_constant: f32,
         time_delta: f32,
+        body_force: Vector3<f32>,
     ) {
         // Numerical Safeguard: Sanitize force to prevent NaN propagation
         let force = if force.iter().all(|f| f.is_finite()) {
@@ -69,7 +70,7 @@ impl Node {
         } else {
             Vector3::zeros()
         };
-        self.force = force;
+        self.force = force + body_force * self.mass;
 
         macro_rules! velocity_delta {
             ($mass:expr, $force:expr, $velocity:expr) => {{

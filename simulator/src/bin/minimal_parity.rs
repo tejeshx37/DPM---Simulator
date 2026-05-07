@@ -111,7 +111,7 @@ fn main() {
         _pad: [0.0; 3],
     };
 
-    let (gpu_forces, elem_results) = pipeline.execute(4, &gpu_nodes, &gpu_elements, &material);
+    let (gpu_forces, elem_results) = pipeline.execute(4, &gpu_nodes, &gpu_elements, &material, true);
 
     println!("\nGPU σ_xx = {:.4e} Pa", elem_results[0].stress[0][0]);
     println!("GPU force_a: [{:.6}, {:.6}, {:.6}]", gpu_forces[0][0], gpu_forces[0][1], gpu_forces[0][2]);

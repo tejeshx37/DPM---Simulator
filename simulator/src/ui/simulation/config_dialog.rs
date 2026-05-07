@@ -47,6 +47,9 @@ const MATERIAL_PRESETS: &[MaterialPreset] = &[
 enum SimulationConfigInput {
     Duration,
     RefreshPeriod,
+    BodyForceX,
+    BodyForceY,
+    BodyForceZ,
 }
 
 impl SimulationConfigInput {
@@ -56,6 +59,9 @@ impl SimulationConfigInput {
             SimulationConfigInput::RefreshPeriod => "Rate at which new frames should be displayed. For example \
             a refresh rate of 100 will display new frame at every 100 timesteps. Higher the period, slower the update, \
             but faster the simulation since rendering a frame takes up a lot of time.",
+            SimulationConfigInput::BodyForceX => "Body force component in the X direction (e.g. acceleration like gravity).",
+            SimulationConfigInput::BodyForceY => "Body force component in the Y direction (e.g. acceleration like gravity).",
+            SimulationConfigInput::BodyForceZ => "Body force component in the Z direction (e.g. acceleration like gravity).",
         }
     }
 }
@@ -219,6 +225,9 @@ impl State {
             simulation_config_input: enum_map::enum_map! {
                 SimulationConfigInput::Duration => config.cpd_config().duration().as_secs_f32().to_string(),
                 SimulationConfigInput::RefreshPeriod => config.refresh_period().to_string(),
+                SimulationConfigInput::BodyForceX => config.cpd_config().body_force().x.to_string(),
+                SimulationConfigInput::BodyForceY => config.cpd_config().body_force().y.to_string(),
+                SimulationConfigInput::BodyForceZ => config.cpd_config().body_force().z.to_string(),
             },
             time_step_input: format!("{:e}", config.cpd_config().time_delta().as_secs_f64()),
             adaptive_time_step: *config.cpd_config().adaptive_time_step(),
@@ -377,6 +386,11 @@ impl TryFrom<&State> for Config {
             .adaptive_time_step(state.adaptive_time_step)
             .min_time_delta(min_dt)
             .max_time_delta(max_dt)
+            .body_force(nalgebra::Vector3::new(
+                parse_input!(simulation_config_input, BodyForceX)?,
+                parse_input!(simulation_config_input, BodyForceY)?,
+                parse_input!(simulation_config_input, BodyForceZ)?,
+            ))
             .build();
         let export_config =
             state

@@ -1,5 +1,6 @@
 use super::material;
 use derive_getters::Getters;
+use nalgebra::Vector3;
 use std::time::Duration;
 use typed_builder::TypedBuilder;
 
@@ -15,6 +16,8 @@ pub struct Config {
     min_time_delta: Option<Duration>,
     #[builder(default)]
     max_time_delta: Option<Duration>,
+    #[builder(default=Vector3::zeros())]
+    body_force: Vector3<f32>,
 }
 
 impl Config {

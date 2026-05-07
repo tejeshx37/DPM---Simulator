@@ -35,7 +35,8 @@ fn main() {
         Some(&PolygonSetInputKind::Sphere {
             center: RationalPoint::new(0, 0),
             radius: 1.into(),
-        }), 
+        }),
+        None,
         Callback::None
     ).unwrap();
     
@@ -90,10 +91,10 @@ fn main() {
     gpu_computer.set_gpu_pipeline(Some(gpu_pipeline.clone()));
 
     println!("Running Step 1 on CPU...");
-    let AdvanceResult::InProgress(cpu_next) = cpu_computer.advance() else { panic!("Expected InProgress") };
+    let AdvanceResult::InProgress(cpu_next) = cpu_computer.advance(true) else { panic!("Expected InProgress") };
     
     println!("Running Step 1 on GPU...");
-    let AdvanceResult::InProgress(gpu_next) = gpu_computer.advance() else { panic!("Expected InProgress") };
+    let AdvanceResult::InProgress(gpu_next) = gpu_computer.advance(true) else { panic!("Expected InProgress") };
 
     println!("\n--- Per-node force & position comparison ---");
     let cpu_data = cpu_next.export_data();

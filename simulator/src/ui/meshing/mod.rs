@@ -194,7 +194,7 @@ impl Page {
             &mut self.input_error,
         );
         if let Some(data) = data {
-            self.mesh_generator.generate(data.num_points, data.size_bound_override, data.thickness).expect("Worker thread is active");
+            self.mesh_generator.generate(data.num_points, data.size_bound_override, data.thickness, None).expect("Worker thread is active");
         }
 
         let should_run = matches!(self.state_receiver.data, State::Mesh(_))
