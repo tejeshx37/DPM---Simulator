@@ -14,17 +14,33 @@ const CPP_FILES: &[&str] = &[
 fn main() -> anyhow::Result<()> {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     
-    let (gmp_include, gmp_lib) = if cfg!(target_os = "windows") {
-        (PathBuf::from("C:\\msys64\\mingw64\\include"), PathBuf::from("C:\\msys64\\mingw64\\lib"))
-    } else if cfg!(target_os = "macos") {
-        if Path::new("/opt/homebrew/include").exists() {
-            (PathBuf::from("/opt/homebrew/include"), PathBuf::from("/opt/homebrew/lib"))
+    let gmp_include = env::var("GMP_INCLUDE_DIR").map(PathBuf::from).unwrap_or_else(|_| {
+        if cfg!(target_os = "windows") {
+            PathBuf::from("C:\\msys64\\mingw64\\include")
+        } else if cfg!(target_os = "macos") {
+            if Path::new("/opt/homebrew/include").exists() {
+                PathBuf::from("/opt/homebrew/include")
+            } else {
+                PathBuf::from("/usr/local/include")
+            }
         } else {
-            (PathBuf::from("/usr/local/include"), PathBuf::from("/usr/local/lib"))
+            PathBuf::from("/usr/include")
         }
-    } else {
-        (PathBuf::from("/usr/include"), PathBuf::from("/usr/lib"))
-    };
+    });
+
+    let gmp_lib = env::var("GMP_LIB_DIR").map(PathBuf::from).unwrap_or_else(|_| {
+        if cfg!(target_os = "windows") {
+            PathBuf::from("C:\\msys64\\mingw64\\lib")
+        } else if cfg!(target_os = "macos") {
+            if Path::new("/opt/homebrew/lib").exists() {
+                PathBuf::from("/opt/homebrew/lib")
+            } else {
+                PathBuf::from("/usr/local/lib")
+            }
+        } else {
+            PathBuf::from("/usr/lib")
+        }
+    });
 
     let mut build = cxx_build::bridges(["src/lib.rs", "src/triangulation.rs"]);
     build.cpp(true)

@@ -51,5 +51,29 @@ const_format = { version = "0.2.32", features = [
 uuid = { version = "1.8.0", features = ["fast-rng", "v4", "serde"] }
 mesh = { workspace = true, features = ["serde"] }
 
+[build-dependencies]
+winres = "0.1"
+
+[package.metadata.packager]
+name = "DPM-Simulator"
+product-name = "DPM Simulator"
+identifier = "com.dpm.simulator"
+version = "0.25.1"
+authors = ["DPM Team"]
+description = "Continuum Interaction Particle Dynamics Simulator"
+homepage = "https://github.com/dpm-simulator/dpm"
+icons = ["src/assets/simulator-icon.svg"]
+
+[package.metadata.packager.macos]
+formats = ["dmg"]
+minimum-system-version = "10.15"
+
+[package.metadata.packager.windows]
+formats = ["nsis"]
+
+[package.metadata.packager.linux]
+formats = ["deb"]
+section = "science"
+
 [dev-dependencies]
 test-case.workspace = true

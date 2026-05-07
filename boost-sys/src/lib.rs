@@ -1,6 +1,11 @@
 use std::path::PathBuf;
+use std::env;
 
 pub fn headers() -> PathBuf {
+    if let Ok(dir) = env::var("BOOST_INCLUDE_DIR") {
+        return PathBuf::from(dir);
+    }
+
     if cfg!(target_os = "windows") {
         PathBuf::from("C:\\msys64\\mingw64\\include")
     } else if cfg!(target_os = "macos") {
