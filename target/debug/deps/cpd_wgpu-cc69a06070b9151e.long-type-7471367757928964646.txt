@@ -1,1 +1,0 @@
-GenericOneshotSender<parking_lot::raw_mutex::RawMutex, std::result::Result<(), BufferAsyncError>>

@@ -1,2 +1,0 @@
-cargo:rerun-if-changed=build/build.rs
-cargo:rustc-check-cfg=cfg(cfg_macro_not_allowed)
