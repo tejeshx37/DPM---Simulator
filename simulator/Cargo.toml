@@ -73,6 +73,8 @@ formats = ["nsis"]
 
 [package.metadata.packager.linux]
 formats = ["deb"]
+
+[package.metadata.packager.deb]
 section = "science"
 depends = [
     "libgtk-3-0",
