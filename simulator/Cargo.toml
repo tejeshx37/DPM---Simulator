@@ -51,7 +51,7 @@ const_format = { version = "0.2.32", features = [
 uuid = { version = "1.8.0", features = ["fast-rng", "v4", "serde"] }
 mesh = { workspace = true, features = ["serde"] }
 
-[build-dependencies]
+[target.'cfg(target_os = "windows")'.build-dependencies]
 winres = "0.1"
 
 [package.metadata.packager]

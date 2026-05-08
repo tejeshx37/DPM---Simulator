@@ -16,10 +16,16 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: dpm-simulator-linux
+            package_format: deb
+            binary_name: simulator-linux
           - os: windows-latest
             artifact_name: dpm-simulator-windows
+            package_format: nsis
+            binary_name: simulator-windows.exe
           - os: macos-latest
             artifact_name: dpm-simulator-macos
+            package_format: dmg
+            binary_name: simulator-macos
 
     steps:
       - uses: actions/checkout@v4
@@ -56,11 +62,26 @@ jobs:
       - name: Build and Package
         shell: bash
         run: |
-          # Ensure workspace build profiles are used
-          cargo packager --release --verbose
+          # Build the simulator binary
+          cargo build --release -p simulator
+          
+          # Rename the binary to the platform-specific name
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            mv target/release/simulator.exe target/release/${{ matrix.binary_name }}
+          else
+            mv target/release/simulator target/release/${{ matrix.binary_name }}
+          fi
+          
+          # Run packager from the simulator directory
+          # We pass the binary name to ensure it packages the renamed one
+          cd simulator
+          cargo packager --release --verbose --formats ${{ matrix.package_format }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: simulator/dist/*
+          path: |
+            simulator/dist/*
+            target/release/${{ matrix.binary_name }}
+
