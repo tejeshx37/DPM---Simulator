@@ -67,9 +67,9 @@ jobs:
           
           # Rename the binary to the platform-specific name
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            mv target/release/simulator.exe target/release/${{ matrix.binary_name }}
+            cp target/release/simulator.exe target/release/${{ matrix.binary_name }}
           else
-            mv target/release/simulator target/release/${{ matrix.binary_name }}
+            cp target/release/simulator target/release/${{ matrix.binary_name }}
           fi
           
           # Run packager from the simulator directory

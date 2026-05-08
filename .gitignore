@@ -1,5 +1,13 @@
 # Rust
 target/
+simulator/dist/
+
+# Binaries and Installers
+*.deb
+*.dmg
+*.msi
+*.exe
+*.pkg
 
 # IDEs
 .vscode/
