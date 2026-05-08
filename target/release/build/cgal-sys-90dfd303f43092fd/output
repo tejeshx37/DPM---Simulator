@@ -1,6 +1,6 @@
 cargo:CXXBRIDGE_PREFIX=cgal-sys
-cargo:CXXBRIDGE_DIR0=/Users/mtejeshx37/dpm/target/release/build/cgal-sys-90dfd303f43092fd/out/cxxbridge/include
-cargo:CXXBRIDGE_DIR1=/Users/mtejeshx37/dpm/target/release/build/cgal-sys-90dfd303f43092fd/out/cxxbridge/crate
+cargo:CXXBRIDGE_DIR0=/Users/mtejeshx37/DPM - Simulator/target/release/build/cgal-sys-90dfd303f43092fd/out/cxxbridge/include
+cargo:CXXBRIDGE_DIR1=/Users/mtejeshx37/DPM - Simulator/target/release/build/cgal-sys-90dfd303f43092fd/out/cxxbridge/crate
 TARGET = Some("aarch64-apple-darwin")
 OPT_LEVEL = Some("3")
 HOST = Some("aarch64-apple-darwin")
@@ -50,7 +50,7 @@ HOST_ARFLAGS = None
 cargo:rerun-if-env-changed=ARFLAGS
 ARFLAGS = None
 cargo:rustc-link-lib=static=cgal
-cargo:rustc-link-search=native=/Users/mtejeshx37/dpm/target/release/build/cgal-sys-90dfd303f43092fd/out
+cargo:rustc-link-search=native=/Users/mtejeshx37/DPM - Simulator/target/release/build/cgal-sys-90dfd303f43092fd/out
 cargo:rustc-link-search=native=/opt/homebrew/lib
 cargo:rustc-link-lib=gmp
 cargo:rustc-link-lib=mpfr

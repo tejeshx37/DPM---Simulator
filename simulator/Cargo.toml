@@ -74,6 +74,17 @@ formats = ["nsis"]
 [package.metadata.packager.linux]
 formats = ["deb"]
 section = "science"
+depends = [
+    "libgtk-3-0",
+    "libasound2",
+    "libc6",
+    "libgcc-s1",
+    "libstdc++6",
+    "libgmp10",
+    "libmpfr6",
+    "libcgal13 | libcgal11",
+    "libboost-system-dev"
+]
 
 [dev-dependencies]
 test-case.workspace = true

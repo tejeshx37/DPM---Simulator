@@ -21,6 +21,10 @@ struct AppConfig {
 fn main() -> eframe::Result<()> {
     pretty_env_logger::init();
     
+    if let Ok(backend) = std::env::var("WGPU_BACKEND") {
+        println!("[Info] Forcing graphics backend: {}", backend);
+    }
+    
     // --- Hardware Detection (Run once at startup) ---
     let gpu_mode = hardware_detect::detect_hardware();
     println!("--------------------------------------------------");
