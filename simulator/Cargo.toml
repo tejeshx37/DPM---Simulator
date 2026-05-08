@@ -63,16 +63,14 @@ authors = ["DPM Team"]
 description = "Continuum Interaction Particle Dynamics Simulator"
 homepage = "https://github.com/dpm-simulator/dpm"
 icons = ["src/assets/simulator-icon.svg"]
+formats = ["dmg", "nsis", "deb"]
 
 [package.metadata.packager.macos]
-formats = ["dmg"]
 minimum-system-version = "10.15"
 
 [package.metadata.packager.windows]
-formats = ["nsis"]
 
 [package.metadata.packager.linux]
-formats = ["deb"]
 
 [package.metadata.packager.deb]
 section = "science"
