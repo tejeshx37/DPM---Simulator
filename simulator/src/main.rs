@@ -44,6 +44,12 @@ fn main() -> eframe::Result<()> {
                 .with_inner_size([1280.0, 800.0])
                 .with_min_inner_size([1024.0, 768.0]),
             wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
+                power_preference: if cfg!(target_os = "macos") {
+                    eframe::wgpu::PowerPreference::HighPerformance
+                } else {
+                    // Prefer integrated graphics to avoid NVIDIA EGL/Wayland bugs on Linux/Windows
+                    eframe::wgpu::PowerPreference::LowPower
+                },
                 supported_backends: eframe::wgpu::util::backend_bits_from_env()
                     .unwrap_or_else(|| {
                         if cfg!(target_os = "linux") {
