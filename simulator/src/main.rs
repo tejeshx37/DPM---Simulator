@@ -43,6 +43,17 @@ fn main() -> eframe::Result<()> {
                 .with_app_id(APP_ID)
                 .with_inner_size([1280.0, 800.0])
                 .with_min_inner_size([1024.0, 768.0]),
+            wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
+                supported_backends: eframe::wgpu::util::backend_bits_from_env()
+                    .unwrap_or_else(|| {
+                        if cfg!(target_os = "linux") {
+                            eframe::wgpu::Backends::VULKAN
+                        } else {
+                            eframe::wgpu::Backends::PRIMARY
+                        }
+                    }),
+                ..Default::default()
+            },
             ..Default::default()
         },
         Box::new(move |cc| Box::new(App::new(cc, gpu_mode))),

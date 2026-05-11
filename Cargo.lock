@@ -1279,6 +1279,7 @@ dependencies = [
  "objc",
  "parking_lot",
  "percent-encoding",
+ "pollster",
  "puffin",
  "raw-window-handle 0.5.2",
  "raw-window-handle 0.6.1",
@@ -1290,6 +1291,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
+ "wgpu",
  "winapi",
  "winit",
 ]

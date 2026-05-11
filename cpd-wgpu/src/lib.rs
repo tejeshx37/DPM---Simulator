@@ -130,7 +130,16 @@ unsafe impl Sync for ComputePipeline {}
 
 impl ComputePipeline {
     pub async fn new() -> Option<Self> {
-        let instance = wgpu::Instance::default();
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::util::backend_bits_from_env().unwrap_or_else(|| {
+                if cfg!(target_os = "linux") {
+                    wgpu::Backends::VULKAN
+                } else {
+                    wgpu::Backends::PRIMARY
+                }
+            }),
+            ..Default::default()
+        });
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())
             .await?;
