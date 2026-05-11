@@ -12,19 +12,12 @@ sudo ./scripts/setup_linux.sh
 
 ## Manual Installation
 
-If you prefer to install dependencies manually, you will need the following packages:
+If you prefer to install dependencies manually instead of using the script, run the following command to install all physics and GUI libraries:
 
-### Physics Engine Dependencies
-- `libcgal-dev`
-- `libboost-all-dev`
-- `libgmp-dev`
-- `libmpfr-dev`
-
-### GUI & Graphics Dependencies
-- `libgtk-3-dev`
-- `libasound2-dev`
-- `libvulkan-dev` (recommended for GPU acceleration)
-- `libwayland-dev` / `libxkbcommon-dev` (for Wayland support)
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential pkg-config libcgal-dev libboost-all-dev libgmp-dev libmpfr-dev libgtk-3-dev libasound2-dev libvulkan-dev libwayland-dev libxkbcommon-dev cmake
+```
 
 ## Building from Source
 

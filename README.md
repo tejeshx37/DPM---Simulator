@@ -25,19 +25,14 @@ The project is structured as a Cargo workspace with several key crates:
 
 To build the simulator from source, you need a Rust toolchain (`cargo`) and the following system-level dependencies:
 
-### Core / Physics Dependencies
-- CGAL (`libcgal-dev`)
-- Boost (`libboost-all-dev`)
-- GMP (`libgmp-dev`)
-- MPFR (`libmpfr-dev`)
+### System-Level Dependencies (Ubuntu/Debian)
+To install all required packages at once, run:
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential pkg-config libcgal-dev libboost-all-dev libgmp-dev libmpfr-dev libgtk-3-dev libasound2-dev libvulkan-dev libwayland-dev libxkbcommon-dev cmake
+```
 
-### Graphics & GUI Dependencies (Linux)
-- GTK 3 (`libgtk-3-dev`)
-- ALSA (`libasound2-dev`)
-- Vulkan (`libvulkan-dev`) (Recommended for GPU acceleration)
-- Wayland / XKB (`libwayland-dev`, `libxkbcommon-dev`)
-
-> *Note: For comprehensive Linux-specific setup instructions, please see [README_LINUX.md](./README_LINUX.md).*
+> *Note: We also provide a helper script: `sudo ./scripts/setup_linux.sh`. For comprehensive Linux-specific setup instructions, please see [README_LINUX.md](./README_LINUX.md).*
 
 ## Building and Running
 
