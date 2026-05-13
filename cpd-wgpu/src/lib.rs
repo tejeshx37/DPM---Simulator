@@ -131,23 +131,12 @@ unsafe impl Sync for ComputePipeline {}
 impl ComputePipeline {
     pub async fn new() -> Option<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::util::backend_bits_from_env().unwrap_or_else(|| {
-                if cfg!(target_os = "linux") {
-                    wgpu::Backends::VULKAN
-                } else {
-                    wgpu::Backends::PRIMARY
-                }
-            }),
+            backends: wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::PRIMARY),
             ..Default::default()
         });
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: if cfg!(target_os = "macos") {
-                    wgpu::PowerPreference::HighPerformance
-                } else {
-                    // Prefer integrated graphics to avoid NVIDIA bugs
-                    wgpu::PowerPreference::LowPower
-                },
+                power_preference: wgpu::PowerPreference::LowPower, // Prefer integrated graphics to avoid NVIDIA bugs
                 compatible_surface: None,
                 force_fallback_adapter: false,
             })

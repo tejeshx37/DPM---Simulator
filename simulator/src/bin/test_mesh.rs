@@ -1,10 +1,10 @@
-use cgal::{PolygonSet, PolygonSetInputKind, RationalPoint};
+use cgal::{PolygonSet, PolygonSetInputKind};
 use mesh::{Mesh, Callback};
 
 fn main() {
     let mut set = PolygonSet::default();
     let sphere = PolygonSetInputKind::Sphere {
-        center: RationalPoint::new(0, 0),
+        center: cgal::RationalPoint3::new(0, 0, 0),
         radius: 1.into(),
     };
     set.process_input(&cgal::PolygonSetInput::Join(sphere)).unwrap();
@@ -18,7 +18,7 @@ fn main() {
         None, 
         1.0, 
         Some(&PolygonSetInputKind::Sphere {
-            center: RationalPoint::new(0, 0),
+            center: cgal::RationalPoint3::new(0, 0, 0),
             radius: 1.into(),
         }),
         None,

@@ -449,7 +449,7 @@ fn window_ui(state: &mut State, ui: &mut Ui) -> Response {
     egui::Frame::group(ui.style()).show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.strong("Quick Material Preset:");
-            ComboBox::from_id_source("material_preset_combo")
+            ComboBox::from_id_salt("material_preset_combo")
                 .selected_text("Select a preset...")
                 .show_ui(ui, |ui| {
                     for preset in MATERIAL_PRESETS {

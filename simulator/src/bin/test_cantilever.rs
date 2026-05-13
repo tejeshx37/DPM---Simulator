@@ -32,7 +32,7 @@
 ///  Prints per-step summaries: time, max stress, max displacement, KE.
 /// ============================================================
 
-use cgal::{BoundaryId, PolygonSet, PolygonSetInput, PolygonSetInputKind, RationalPoint};
+use cgal::{BoundaryId, PolygonSet, PolygonSetInput, PolygonSetInputKind};
 use cpd::{
     boundary_condition::{BoundaryCondition, Displacement},
     computer::{self, AdvanceResult},
@@ -77,7 +77,7 @@ fn main() {
 
     let mut polygon_set = PolygonSet::default();
     let sphere_kind = PolygonSetInputKind::Sphere {
-        center: RationalPoint::new(0, 0),
+        center: cgal::RationalPoint3::new(0, 0, 0),
         radius: 1.into(),
     };
     polygon_set

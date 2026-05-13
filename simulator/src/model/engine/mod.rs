@@ -1,7 +1,7 @@
 mod export;
 
 use super::{
-    boundary_conditions::BoundaryConditions,
+    boundary_conditions::{BoundaryConditions, FacePlaneCondition},
     project::data::{Data, WithCpdExportData, WithMesh},
     state_channel, PolygonData, RefreshToken,
 };
@@ -187,6 +187,7 @@ impl<T: RefreshToken> Engine<T> {
         let computer = Self::new_computer(
             &project_data.state().mesh,
             &project_data.state().boundary_conditions,
+            &project_data.state().face_3d_conditions,
         );
         let state = project_data.state();
         Self {
@@ -205,11 +206,12 @@ impl<T: RefreshToken> Engine<T> {
         }
     }
 
-    fn new_computer(mesh: &Mesh, boundary_conditions: &BoundaryConditions) -> Computer {
+    fn new_computer(mesh: &Mesh, boundary_conditions: &BoundaryConditions, face_3d_conditions: &[FacePlaneCondition]) -> Computer {
         let point_boundary_conditions: FxHashMap<usize, BoundaryCondition> = mesh
             .point_id_map()
             .par_iter()
             .map(|(vertex_index, boundary_ids)| {
+                // Accumulate 2D curve-based conditions
                 let condition = boundary_ids
                     .iter()
                     .map(|id| {
@@ -232,6 +234,26 @@ impl<T: RefreshToken> Engine<T> {
                 (*vertex_index, condition)
             })
             .collect();
+
+        // Apply 3D face-plane conditions on top: check each node's coordinate
+        let mut point_boundary_conditions = point_boundary_conditions;
+        if !face_3d_conditions.is_empty() {
+            let vertices = mesh.triangulation_data().vertices();
+            for (idx, vertex) in vertices.iter().enumerate() {
+                let p = vertex.point();
+                let pos = [p.x as f64, p.y as f64, p.z as f64];
+                for fc in face_3d_conditions {
+                    if fc.matches(pos) {
+                        let entry = point_boundary_conditions
+                            .entry(idx)
+                            .or_insert(BoundaryCondition::Free);
+                        let merged = entry.clone() + fc.condition.clone();
+                        *entry = merged;
+                    }
+                }
+            }
+        }
+
         Computer::Unconfigured(computer::unconfigured(
             mesh.triangulation_data(),
             mesh.boundary_point_map(),

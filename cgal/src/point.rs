@@ -36,6 +36,7 @@ impl Drop for Point {
 
 impl From<UniquePtr<cgal_sys::Point>> for Point {
     fn from(ptr: UniquePtr<cgal_sys::Point>) -> Self {
+        let _lock = crate::lock();
         Self {
             x: ptr.x().into(),
             y: ptr.y().into(),

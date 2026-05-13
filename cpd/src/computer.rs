@@ -164,7 +164,13 @@ impl<S: State> Computer<S> {
     }
 
     pub fn record_boundary_data(&mut self, id: BoundaryId) {
-        let info = &self.boundary_infos[&id];
+        let info = match self.boundary_infos.get(&id) {
+            Some(info) => info,
+            None => {
+                log::warn!("Attempted to record boundary data for missing BoundaryId: {:?}", id);
+                return;
+            }
+        };
         let data = match info.boundary_condition {
             BoundaryCondition::Free => BoundaryAverage::ForceAndDisplacement(vec![]),
             BoundaryCondition::Force(_) => BoundaryAverage::Displacement(vec![]),

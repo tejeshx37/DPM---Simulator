@@ -26,6 +26,7 @@ std::unique_ptr<Rational> create_rational(const std::int32_t num, const std::int
 std::unique_ptr<Rational> create_rational(const Integer &num, const Integer &den);
 std::unique_ptr<Rational> create_rational(const double value);
 std::unique_ptr<Rational> create_rational(const Rational &value);
+double rational_to_double(const Rational &value);
 
 template <typename T>
 std::unique_ptr<Integer> create_integer(const T value)

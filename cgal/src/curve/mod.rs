@@ -95,6 +95,7 @@ impl Curve {
 
 impl From<UniquePtr<XMonotoneCurve>> for Curve {
     fn from(ptr: UniquePtr<XMonotoneCurve>) -> Self {
+        let _lock = crate::lock();
         if ptr.is_special_segment() {
             Curve::Line(LineSegment::from(ptr))
         } else {

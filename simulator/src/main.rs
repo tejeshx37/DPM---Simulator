@@ -44,25 +44,14 @@ fn main() -> eframe::Result<()> {
                 .with_inner_size([1280.0, 800.0])
                 .with_min_inner_size([1024.0, 768.0]),
             wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
-                power_preference: if cfg!(target_os = "macos") {
-                    eframe::wgpu::PowerPreference::HighPerformance
-                } else {
-                    // Prefer integrated graphics to avoid NVIDIA EGL/Wayland bugs on Linux/Windows
-                    eframe::wgpu::PowerPreference::LowPower
-                },
+                power_preference: eframe::wgpu::PowerPreference::LowPower, // Prefer integrated graphics to avoid NVIDIA EGL/Wayland bugs on Linux
                 supported_backends: eframe::wgpu::util::backend_bits_from_env()
-                    .unwrap_or_else(|| {
-                        if cfg!(target_os = "linux") {
-                            eframe::wgpu::Backends::VULKAN
-                        } else {
-                            eframe::wgpu::Backends::PRIMARY
-                        }
-                    }),
+                    .unwrap_or(eframe::wgpu::Backends::PRIMARY),
                 ..Default::default()
             },
             ..Default::default()
         },
-        Box::new(move |cc| Box::new(App::new(cc, gpu_mode))),
+        Box::new(move |cc| Ok(Box::new(App::new(cc, gpu_mode)))),
     )
 }
 

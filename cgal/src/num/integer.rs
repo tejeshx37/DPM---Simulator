@@ -24,6 +24,7 @@ impl FromStr for Integer {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let _lock = crate::lock();
         cxx::let_cxx_string!(cxx_str = s);
         cgal_sys::integer_from_string(&cxx_str)
             .map(Into::into)
@@ -33,12 +34,14 @@ impl FromStr for Integer {
 
 impl From<i32> for Integer {
     fn from(value: i32) -> Self {
+        let _lock = crate::lock();
         cgal_sys::create_integer_from_i32(value).into()
     }
 }
 
 impl From<u32> for Integer {
     fn from(value: u32) -> Self {
+        let _lock = crate::lock();
         cgal_sys::create_integer_from_u32(value).into()
     }
 }
@@ -53,6 +56,7 @@ impl Deref for Integer {
 
 impl PartialEq for Integer {
     fn eq(&self, other: &Self) -> bool {
+        let _lock = crate::lock();
         cgal_sys::integer_eq(self, other)
     }
 }
@@ -83,6 +87,7 @@ impl Debug for Integer {
 
 impl Display for Integer {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let _lock = crate::lock();
         f.write_str(&cgal_sys::integer_to_string(self).to_string())
     }
 }
@@ -100,16 +105,19 @@ impl Mul for Integer {
     type Output = Integer;
 
     fn mul(self, rhs: Self) -> Self::Output {
+        let _lock = crate::lock();
         Self::from(cgal_sys::mul_integer(&self, &rhs))
     }
 }
 
 impl Integer {
     pub fn pow(&self, exp: u32) -> Self {
+        let _lock = crate::lock();
         Self::from(cgal_sys::pow_integer(self, exp))
     }
 
     pub fn abs(&self) -> Self {
+        let _lock = crate::lock();
         Self::from(cgal_sys::abs_integer(self))
     }
 }

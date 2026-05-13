@@ -10,5 +10,6 @@ pub enum Shape {
     Cube,
     Cuboid,
     Cone,
+    Cylinder,
     Sphere,
 }

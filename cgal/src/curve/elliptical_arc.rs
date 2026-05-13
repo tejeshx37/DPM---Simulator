@@ -52,20 +52,24 @@ impl Drop for EllipticalArc {
 
 impl PartialEq for EllipticalArc {
     fn eq(&self, other: &Self) -> bool {
+        let _lock = crate::lock();
         cgal_sys::equals(&self.inner, &other.inner)
     }
 }
 
 impl EllipticalArc {
     pub fn center(&self) -> Point {
+        let _lock = crate::lock();
         self.data.center().into()
     }
 
     pub fn a(&self) -> Algebraic {
+        let _lock = crate::lock();
         self.data.a().into()
     }
 
     pub fn b(&self) -> Algebraic {
+        let _lock = crate::lock();
         self.data.b().into()
     }
 
@@ -211,6 +215,7 @@ impl EllipticalArc {
 
 impl From<UniquePtr<XMonotoneCurve>> for EllipticalArc {
     fn from(ptr: UniquePtr<XMonotoneCurve>) -> Self {
+        let _lock = crate::lock();
         assert!(!ptr.is_special_segment());
         EllipticalArc {
             end_points: (&*ptr).into(),

@@ -9,50 +9,34 @@ const CPP_FILES: &[&str] = &[
     "cpp/polygon.cpp",
     "cpp/polygon_with_holes.cpp",
     "cpp/triangulation.cpp",
+    "cpp/polyhedron_set.cpp",
 ];
 
 fn main() -> anyhow::Result<()> {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     
     let gmp_include = env::var("GMP_INCLUDE_DIR").map(PathBuf::from).unwrap_or_else(|_| {
-        if cfg!(target_os = "windows") {
-            PathBuf::from("C:\\msys64\\mingw64\\include")
-        } else if cfg!(target_os = "macos") {
-            if Path::new("/opt/homebrew/include").exists() {
-                PathBuf::from("/opt/homebrew/include")
-            } else {
-                PathBuf::from("/usr/local/include")
-            }
+        if Path::new("/opt/homebrew/include").exists() {
+            PathBuf::from("/opt/homebrew/include")
         } else {
             PathBuf::from("/usr/include")
         }
     });
 
     let gmp_lib = env::var("GMP_LIB_DIR").map(PathBuf::from).unwrap_or_else(|_| {
-        if cfg!(target_os = "windows") {
-            PathBuf::from("C:\\msys64\\mingw64\\lib")
-        } else if cfg!(target_os = "macos") {
-            if Path::new("/opt/homebrew/lib").exists() {
-                PathBuf::from("/opt/homebrew/lib")
-            } else {
-                PathBuf::from("/usr/local/lib")
-            }
+        if Path::new("/opt/homebrew/lib").exists() {
+            PathBuf::from("/opt/homebrew/lib")
         } else {
             PathBuf::from("/usr/lib")
         }
     });
 
+
     let mut build = cxx_build::bridges(["src/lib.rs", "src/triangulation.rs"]);
     build.cpp(true)
         .flag("-std=gnu++17");
 
-    if cfg!(target_os = "windows") {
-        build.flag("-U__STRICT_ANSI__")
-            .flag("-fext-numeric-literals")
-            .flag("-D_UCRT")
-            .flag("-D_GNU_SOURCE")
-            .flag("-D_WIN32_WINNT=0x0601");
-    }
+
 
     build.flag("-w")
         .files(CPP_FILES)

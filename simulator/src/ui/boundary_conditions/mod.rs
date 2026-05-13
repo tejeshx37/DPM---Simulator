@@ -2,7 +2,7 @@ mod dialog;
 
 use super::{bottom_panel, error_dialog, plot_utils};
 use crate::model::{
-    boundary_conditions::Configurator,
+    boundary_conditions::{Axis3D, Configurator, FacePlaneCondition, PlaneComparison},
     project::data::{Data, WithBoundaryConditions, WithShape},
 };
 use cgal::{
@@ -15,6 +15,7 @@ use ecolor::Color32;
 use egui::{CentralPanel, Context, Frame, RichText, ScrollArea, SidePanel, Slider, Ui};
 use egui_plot::{Line, MarkerShape, PlotPoint, PlotUi, Points, Text};
 use std::{fmt::Debug, ops::RangeInclusive};
+use strum::IntoEnumIterator;
 
 const VIOLET: Color32 = Color32::from_rgb(0x8F, 0x00, 0xFF);
 
@@ -104,6 +105,10 @@ pub struct Page {
     boundary_state: Box<BoundaryState>,
     dialog_state: Option<Box<dialog::State>>,
     input_error: Option<String>,
+    pending_face: FacePlaneCondition,
+    rotation_x: f32,
+    rotation_y: f32,
+    needs_reset: bool,
 }
 
 #[derive(Debug)]
@@ -132,6 +137,10 @@ where
             configurator: Box::new(configurator),
             dialog_state: None,
             input_error: None,
+            pending_face: FacePlaneCondition::default(),
+            rotation_x: -0.5,
+            rotation_y: 0.5,
+            needs_reset: false,
         }
     }
 }
@@ -263,9 +272,23 @@ impl Page {
         Response::Noop(self)
     }
 
+    fn is_3d(&self) -> bool {
+        !self.configurator.polygon_data().polyhedron_set().is_empty()
+    }
+
     fn add_boundary_list(&mut self, ui: &mut Ui) {
         puffin::profile_function!();
         ui.add_space(10.0);
+        if self.is_3d() {
+            self.add_face_3d_panel(ui);
+            ui.add_space(10.0);
+            if ui.button(format!("{} Reset Camera", crate::ui::unicode_symbols::REFRESH)).clicked() {
+                self.rotation_x = -0.5;
+                self.rotation_y = 0.5;
+                self.needs_reset = true;
+            }
+            return;
+        }
         
         // --- Boundary Selection Card ---
         super::premium::premium_card(ui, "🎯 Select Boundary", |ui| {
@@ -447,29 +470,55 @@ impl Page {
 
     fn plot_polygon_with_holes(&mut self, ui: &mut Ui) {
         puffin::profile_function!();
-        plot_utils::plot_without_clutter("boundary_conditions_plot").show(ui, |ui| {
-            let transform = |id: BoundaryId, ctx: &Context, line: Line| {
-                let conditions = self
-                    .configurator
-                    .get_condition(&id)
-                    .expect("Boundary id is valid");
-                match conditions {
-                    BoundaryCondition::Free => plot_utils::default_transform(id, ctx, line),
-                    BoundaryCondition::Force(_) => line.color(Color32::GREEN),
-                    BoundaryCondition::Displacement(_) => line.color(VIOLET),
+        let is_3d = self.is_3d();
+        let mut rotation_x = self.rotation_x;
+        let mut rotation_y = self.rotation_y;
+        let auto = self.needs_reset;
+        if auto { self.needs_reset = false; }
+
+        plot_utils::plot("bc_plot")
+            .auto_bounds(egui::Vec2b::new(auto, auto))
+            .show_background(false)
+            .show_axes(false)
+            .show_grid(false)
+            .show(ui, |ui| {
+            if is_3d {
+                if ui.response().dragged_by(egui::PointerButton::Secondary) {
+                    let delta = ui.response().drag_delta();
+                    rotation_y += delta.x * 0.01;
+                    rotation_x += delta.y * 0.01;
                 }
-            };
-            let polygon_set = self.configurator.polygon_data().polygon_set();
-            plot_utils::plot_polygon_set(ui, polygon_set, transform);
-            let polygon = &polygon_set.polygon_with_holes()[0];
-            self.plot_polygon_boundary_names(ui, polygon);
-            Self::plot_hole_names(ui, polygon);
-            Self::plot_vertices(ui, polygon_set);
-            if !self.boundary_state.show_point {
-                return;
+
+                let polygon_data = self.configurator.polygon_data();
+                plot_utils::plot_solid_geometry(ui, polygon_data, rotation_x, rotation_y);
+
+                super::gnomon::draw_gnomon(ui, &mut rotation_x, &mut rotation_y);
+            } else {
+                let transform = |id: BoundaryId, ctx: &Context, line: Line| {
+                    let conditions = self
+                        .configurator
+                        .get_condition(&id)
+                        .expect("Boundary id is valid");
+                    match conditions {
+                        BoundaryCondition::Free => plot_utils::default_transform(id, ctx, line),
+                        BoundaryCondition::Force(_) => line.color(Color32::GREEN),
+                        BoundaryCondition::Displacement(_) => line.color(VIOLET),
+                    }
+                };
+                let polygon_set = self.configurator.polygon_data().polygon_set();
+                plot_utils::plot_polygon_set(ui, polygon_set, transform);
+                let polygon = &polygon_set.polygon_with_holes()[0];
+                self.plot_polygon_boundary_names(ui, polygon);
+                Self::plot_hole_names(ui, polygon);
+                Self::plot_vertices(ui, polygon_set);
+                if self.boundary_state.show_point {
+                    self.plot_split_point(ui);
+                }
             }
-            self.plot_split_point(ui);
         });
+
+        self.rotation_x = rotation_x;
+        self.rotation_y = rotation_y;
     }
 
     fn plot_polygon_boundary_names(&self, ui: &mut PlotUi, polygon: &PolygonWithHoles) {
@@ -539,6 +588,134 @@ impl Page {
                 .color(super::on_primary_color(ui.ctx()))
                 .highlight(true),
         );
+    }
+
+    fn add_face_3d_panel(&mut self, ui: &mut Ui) {
+        ui.label(
+            egui::RichText::new("3D Face Boundary Conditions")
+                .heading()
+                .strong(),
+        );
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(
+                "Each rule applies a condition to all mesh nodes where the chosen axis coordinate satisfies the comparison. Use this to constrain faces of 3D shapes.",
+            )
+            .small()
+            .weak(),
+        );
+        ui.add_space(10.0);
+
+        // --- Existing rules ---
+        let conditions = self.configurator.face_3d_conditions().clone();
+        if conditions.is_empty() {
+            ui.label(egui::RichText::new("No face conditions defined yet.").small().weak());
+        } else {
+            ui.label(egui::RichText::new("Active Rules:").strong());
+            ScrollArea::vertical()
+                .id_salt("face3d_list")
+                .max_height(180.0)
+                .show(ui, |ui| {
+                    let mut to_remove: Option<usize> = None;
+                    for (i, fc) in conditions.iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            let cond_tag = match &fc.condition {
+                                BoundaryCondition::Free => "Free",
+                                BoundaryCondition::Force(_) => "Force",
+                                BoundaryCondition::Displacement(_) => "Fixed",
+                            };
+                            ui.label(egui::RichText::new(
+                                format!("[{}] {}", cond_tag, fc.label())
+                            ).small());
+                            if ui.small_button("🗑").clicked() {
+                                to_remove = Some(i);
+                            }
+                        });
+                    }
+                    if let Some(idx) = to_remove {
+                        self.configurator.face_3d_conditions_mut().remove(idx);
+                    }
+                });
+        }
+
+        ui.add_space(10.0);
+        ui.separator();
+        ui.add_space(6.0);
+        ui.label(egui::RichText::new("New Rule").strong());
+        ui.add_space(4.0);
+
+        // Axis
+        ui.horizontal(|ui| {
+            ui.label("Axis:");
+            for axis in Axis3D::iter() {
+                ui.radio_value(&mut self.pending_face.axis, axis, axis.to_string());
+            }
+        });
+
+        // Comparison
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Rule:");
+            for cmp in PlaneComparison::iter() {
+                ui.radio_value(&mut self.pending_face.comparison, cmp, cmp.to_string());
+            }
+        });
+
+        // Threshold value
+        ui.horizontal(|ui| {
+            ui.label("Threshold:");
+            ui.add(
+                egui::DragValue::new(&mut self.pending_face.value)
+                    .speed(0.01)
+                    .fixed_decimals(4),
+            );
+        });
+
+        // Tolerance (only for Approx)
+        if matches!(self.pending_face.comparison, PlaneComparison::Approx) {
+            ui.horizontal(|ui| {
+                ui.label("Tolerance ε:");
+                ui.add(
+                    egui::DragValue::new(&mut self.pending_face.epsilon)
+                        .speed(0.0001)
+                        .fixed_decimals(6),
+                );
+            });
+        }
+
+        // Condition type
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new("Apply:").strong());
+        let is_free = matches!(self.pending_face.condition, BoundaryCondition::Free);
+        let is_fixed = matches!(self.pending_face.condition, BoundaryCondition::Displacement(_));
+        ui.horizontal(|ui| {
+            if ui.radio(is_free, "Free").clicked() {
+                self.pending_face.condition = BoundaryCondition::Free;
+            }
+            if ui.radio(is_fixed, "Fixed (zero displacement)").clicked() {
+                use cpd::boundary_condition::Displacement;
+                use function::{Function, piecewise_linear::{Piece, PiecewiseLinear}};
+                use nalgebra::Vector3;
+                let z = || Function::Piecewise(PiecewiseLinear::builder()
+                    .piece(Piece::builder().end_value(0.0).width(1.0e9).build())
+                    .build());
+                self.pending_face.condition = BoundaryCondition::Displacement(
+                    Displacement::XYZ(Vector3::new(z(), z(), z())),
+                );
+            }
+        });
+
+        ui.add_space(8.0);
+        if ui
+            .add(
+                egui::Button::new("➕ Add Rule")
+                    .fill(ui.visuals().selection.bg_fill)
+                    .rounding(egui::Rounding::same(6.0)),
+            )
+            .clicked()
+        {
+            let rule = self.pending_face.clone();
+            self.configurator.face_3d_conditions_mut().push(rule);
+        }
     }
 }
 

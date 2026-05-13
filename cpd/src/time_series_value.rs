@@ -70,6 +70,7 @@ impl<T> TimeSeriesValue<T> {
     }
 }
 
+#[cfg(feature = "serde")]
 mod serde_impl {
     use super::*;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};

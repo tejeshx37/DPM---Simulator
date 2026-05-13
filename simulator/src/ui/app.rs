@@ -835,7 +835,7 @@ impl App {
                 egui::Stroke::new(1.0, visuals.bg_stroke.color)
             );
             
-            let mut child_ui = ui.child_ui(rect.shrink(16.0), egui::Layout::top_down(egui::Align::Center));
+            let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink(16.0)).layout(egui::Layout::top_down(egui::Align::Center)));
             child_ui.label(egui::RichText::new(icon).size(32.0));
             child_ui.add_space(8.0);
             child_ui.label(egui::RichText::new(title).strong().size(16.0));

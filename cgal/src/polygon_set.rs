@@ -41,6 +41,27 @@ impl From<&RationalPoint> for Point {
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct RationalPoint3 {
+    pub x: Rational,
+    pub y: Rational,
+    pub z: Rational,
+}
+
+impl RationalPoint3 {
+    pub fn new<T>(x: T, y: T, z: T) -> Self
+    where
+        T: Into<Rational>,
+    {
+        Self {
+            x: x.into(),
+            y: y.into(),
+            z: z.into(),
+        }
+    }
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Coordinate {
     X(Rational),
@@ -72,27 +93,33 @@ pub enum InputKind {
         height: Rational,
     },
     Cube {
-        center: RationalPoint,
+        center: RationalPoint3,
         side_length: Rational,
     },
     Cuboid {
-        center: RationalPoint,
+        center: RationalPoint3,
         width: Rational,
         height: Rational,
         depth: Rational,
     },
     Cone {
-        center: RationalPoint,
+        center: RationalPoint3,
         radius: Rational,
         height: Rational,
     },
     Sphere {
-        center: RationalPoint,
+        center: RationalPoint3,
         radius: Rational,
+    },
+    Cylinder {
+        center: RationalPoint3,
+        radius: Rational,
+        height: Rational,
     },
 }
 
 fn orient_clockwise(mut polygon: UniquePtr<cgal_sys::Polygon>) -> UniquePtr<cgal_sys::Polygon> {
+    let _lock = crate::lock();
     use cgal_sys::Orientation;
     if polygon.orientation() != Orientation::COUNTERCLOCKWISE {
         polygon.pin_mut().reverse_orientation();
@@ -104,6 +131,7 @@ impl TryInto<UniquePtr<cgal_sys::Polygon>> for &InputKind {
     type Error = String;
 
     fn try_into(self) -> Result<UniquePtr<cgal_sys::Polygon>, Self::Error> {
+        let _lock = crate::lock();
         match self {
             InputKind::LinearPolygon(vertices) => InputKind::linear(vertices),
             InputKind::Circle { center, diameter } => {
@@ -117,15 +145,21 @@ impl TryInto<UniquePtr<cgal_sys::Polygon>> for &InputKind {
             InputKind::Cube {
                 center,
                 side_length,
-            } => InputKind::rectangle(center, side_length, side_length),
+            } => InputKind::rectangle(&RationalPoint::new(center.x.clone(), center.y.clone()), side_length, side_length), // Note: Temporarily mapped to 2D for backward compatibility in Phase 1
             InputKind::Cuboid {
                 center,
                 width,
                 height,
                 ..
-            } => InputKind::rectangle(center, width, height),
-            InputKind::Cone { center, radius, .. } | InputKind::Sphere { center, radius } => {
-                InputKind::ellipse(center, radius, radius)
+            } => InputKind::rectangle(&RationalPoint::new(center.x.clone(), center.y.clone()), width, height),
+            InputKind::Cone { center, radius, .. }
+            | InputKind::Cylinder { center, radius, .. }
+            | InputKind::Sphere { center, radius } => {
+                InputKind::ellipse(
+                    &RationalPoint::new(center.x.clone(), center.y.clone()),
+                    radius,
+                    radius,
+                )
             }
         }
         .map(orient_clockwise)
@@ -145,6 +179,7 @@ impl InputKind {
     }
 
     fn linear(vertices: &[RationalPoint]) -> Result<UniquePtr<cgal_sys::Polygon>, String> {
+        let _lock = crate::lock();
         if vertices.len() < 3 {
             Err(String::from("Vertices should have at least 3 points"))
         } else {
@@ -168,6 +203,7 @@ impl InputKind {
         width: &Rational,
         height: &Rational,
     ) -> Result<UniquePtr<cgal_sys::Polygon>, String> {
+        let _lock = crate::lock();
         cgal_sys::construct_conic_curve(&center.x, &center.y, width, height)
             .and_then(|curve| cgal_sys::split_conic_curve(&curve))
             .map_err(|err| err.to_string())

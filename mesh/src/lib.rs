@@ -286,6 +286,46 @@ where
 }
 
 impl Mesh {
+    pub fn generate_from_polyhedron(
+        polyhedron: &cgal::PolyhedronSet,
+        num_points: u32,
+        size_bound_override: Option<f64>,
+        mut state_callback: Callback,
+    ) -> Result<Self, String> {
+        state_callback.invoke(State::Init);
+
+        let vertices = polyhedron.get_vertices();
+        if vertices.is_empty() {
+            return Err(String::from("Polyhedron is empty. Cannot generate mesh."));
+        }
+
+        state_callback.invoke(State::GeneratingConstraints);
+
+        // Approximate total size for bounding
+        let triangles = polyhedron.get_triangles();
+        let mut total_perimeter = 0.0;
+        let to_f64 = |r: &cgal::num::Rational| f64::from(cgal::num::Algebraic::from(r));
+        
+        for t in triangles.chunks_exact(3) {
+            let p1 = &vertices[t[0] as usize];
+            let p2 = &vertices[t[1] as usize];
+            let p3 = &vertices[t[2] as usize];
+            let v1 = Vector3::new(to_f64(&p1.x), to_f64(&p1.y), to_f64(&p1.z));
+            let v2 = Vector3::new(to_f64(&p2.x), to_f64(&p2.y), to_f64(&p2.z));
+            let v3 = Vector3::new(to_f64(&p3.x), to_f64(&p3.y), to_f64(&p3.z));
+            total_perimeter += (v1 - v2).magnitude() + (v2 - v3).magnitude() + (v3 - v1).magnitude();
+        }
+        
+        let size_bound = size_bound_override.unwrap_or(total_perimeter / (num_points as f64).max(1.0));
+        
+        let point_cloud: Vec<Vector3<f64>> = vertices
+            .into_iter()
+            .map(|p| Vector3::new(to_f64(&p.x), to_f64(&p.y), to_f64(&p.z)))
+            .collect();
+
+        Self::triangulate_and_build(point_cloud, size_bound, state_callback)
+    }
+
     pub fn generate(
         polygon: &PolygonWithHoles,
         num_points: u32,
@@ -591,7 +631,7 @@ fn generate_associative_data(
 
 impl Mesh {
     fn generate_sphere(
-        center: &cgal::RationalPoint,
+        center: &cgal::RationalPoint3,
         radius: f64,
         num_points: u32,
         size_bound_override: Option<f64>,
@@ -638,7 +678,7 @@ impl Mesh {
     }
 
     fn generate_cone(
-        center: &cgal::RationalPoint,
+        center: &cgal::RationalPoint3,
         radius: f64,
         height: f64,
         num_points: u32,

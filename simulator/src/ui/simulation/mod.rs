@@ -130,7 +130,7 @@ use cgal::BoundaryId;
 use cpd::{BoundaryAverage, ExportData, TimeStampedValue};
 use egui::{
     Button, CentralPanel, CollapsingHeader, Color32, Key, Modifiers, SidePanel,
-    Stroke, Ui, Vec2, Vec2b, WidgetText,
+    Stroke, Ui, Vec2, WidgetText,
 };
 use egui_plot::{AxisHints, Line, Plot, PlotPoint, PlotUi, Polygon};
 use nalgebra::{Matrix3, Vector3};
@@ -183,6 +183,7 @@ pub struct Page {
     #[allow(dead_code)]
     steps_accumulator: f32,
     engine_alive: bool,
+    needs_reset: bool,
 }
 
 #[derive(Debug)]
@@ -295,6 +296,7 @@ impl Page {
             playback_speed: 1.0,
             steps_accumulator: 0.0,
             engine_alive: true,
+            needs_reset: true,
         }
     }
 
@@ -960,6 +962,15 @@ impl Page {
                             });
                         });
                         ui.add_space(12.0);
+                        super::premium::premium_card(ui, "🎮 Viewport", |ui| {
+                            ui.vertical_centered_justified(|ui| {
+                                if ui.button(format!("{} Reset Camera View", unicode_symbols::REFRESH)).clicked() {
+                                    self.rotation_x = 0.0;
+                                    self.rotation_y = 0.0;
+                                    self.needs_reset = true;
+                                }
+                            });
+                        });
                     }
 
                     // ── Visualization Settings ─────────────────────────────
@@ -998,7 +1009,7 @@ impl Page {
                         // 4.5 Colormap
                         ui.add_space(4.0);
                         ui.label(egui::RichText::new("Colormap").small().strong());
-                        egui::ComboBox::from_id_source("colormap_combo")
+                        egui::ComboBox::from_id_salt("colormap_combo")
                             .selected_text(self.colormap.label())
                             .show_ui(ui, |ui| {
                                 for cm in [Colormap::CoolWarm, Colormap::Viridis,
@@ -1307,7 +1318,7 @@ impl Page {
     ) {
         puffin::profile_function!();
         ui.label("Displacement plot");
-        macro_rules! id_source {
+        macro_rules! id_salt {
             ( $comp:literal ) => {
                 const_format::formatcp!("simulation_displacement_{}_plot", $comp)
             };
@@ -1318,7 +1329,7 @@ impl Page {
                     Self::default_open_collapsing_plot(
                         $comp,
                         ui,
-                        id_source!($comp),
+                        id_salt!($comp),
                         "simulation_displacement_plot_group",
                         "Displacement",
                         || Self::plot_series_for_vector(series, $index),
@@ -1377,7 +1388,7 @@ impl Page {
         puffin::profile_function!();
         ui.label("Boundary average plot");
         let size = ui.available_size();
-        macro_rules! id_source {
+        macro_rules! id_salt {
             ( $comp:literal ) => {
                 const_format::formatcp!("simulation_boundary_average_{}_plot", $comp)
             };
@@ -1408,7 +1419,7 @@ impl Page {
                     Self::default_open_collapsing_plot(
                         $comp,
                         ui,
-                        id_source!($comp),
+                        id_salt!($comp),
                         "simulation_boundary_average_plot_group",
                         $vector_name,
                         $series,
@@ -1527,11 +1538,13 @@ impl Page {
 
     fn preview_contents(&mut self, ui: &mut Ui) -> FramePreviewResponse {
         puffin::profile_function!();
-        let auto_bounds = self.receivers.frame_receiver.data.is_none();
+        let auto = self.needs_reset;
+        if auto { self.needs_reset = false; }
+        
         let plot_config = || {
             plot_utils::plot_without_clutter("simulation_preview_plot")
                 .data_aspect(1.0)
-                .auto_bounds(Vec2b::new(auto_bounds, auto_bounds))
+                .auto_bounds(egui::Vec2b::new(auto, auto))
                 .show_axes(false)
                 .allow_double_click_reset(false)
         };
@@ -1539,8 +1552,7 @@ impl Page {
         let frame = self.receivers.frame_receiver.data.clone();
         let Some(frame) = frame else {
             plot_config().show(ui, |ui| {
-                let geometry = self.engine.polygon_data().plot_geometry();
-                plot_utils::plot_cached_geometry(ui, geometry, plot_utils::default_transform);
+                plot_utils::plot_solid_geometry(ui, self.engine.polygon_data(), self.rotation_x, self.rotation_y);
             });
             return FramePreviewResponse::Noop;
         };
@@ -1551,7 +1563,8 @@ impl Page {
         // Optimization: Parallel projection of all nodes once per frame
         let projected_nodes: Vec<[f64; 2]> = data.nodes().par_iter().map(|node| {
             let p = node.position();
-            projector.project([p.x, p.y, p.z])
+            let proj = projector.project([p.x, p.y, p.z]);
+            [proj[0], proj[1]]
         }).collect();
 
         let plot_response = plot_config().show(ui, |ui| {
@@ -1912,7 +1925,7 @@ impl Page {
             // Guard against non-finite or degenerate lines
             if from[0].is_finite() && from[1].is_finite() && to[0].is_finite() && to[1].is_finite() {
                 if (to[0] - from[0]).abs() > 1e-10 || (to[1] - from[1]).abs() > 1e-10 {
-                    ui.line(Line::new(vec![from, to]).color(ORANGE).width(0.8));
+                    ui.line(Line::new(vec![[from[0], from[1]], [to[0], to[1]]]).color(ORANGE).width(0.8));
                 }
             }
         }

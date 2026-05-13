@@ -34,8 +34,10 @@ impl Drop for Polygon {
 
 impl Polygon {
     pub fn centroid(&self) -> &Point {
-        self.centroid
-            .get_or_init(|| cgal_sys::centroid(&self.inner).into())
+        self.centroid.get_or_init(|| {
+            let _lock = crate::lock();
+            cgal_sys::centroid(&self.inner).into()
+        })
     }
 }
 
@@ -48,6 +50,7 @@ impl From<&cgal_sys::Polygon> for Polygon {
 
 impl From<UniquePtr<cgal_sys::Polygon>> for Polygon {
     fn from(polygon: UniquePtr<cgal_sys::Polygon>) -> Self {
+        let _lock = crate::lock();
         let mut curves = Vec::with_capacity(polygon.size() as usize);
         {
             let mut curves_iter = cgal_sys::curve_iterator(&polygon);

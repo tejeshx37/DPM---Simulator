@@ -16,6 +16,7 @@ derive-getters.workspace = true
 sealed.workspace = true
 fxhash.workspace = true
 function.workspace = true
+log = "0.4"
 cpd-wgpu = { path = "../cpd-wgpu", optional = true }
 
 [features]

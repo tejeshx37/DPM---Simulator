@@ -1,18 +1,10 @@
-use std::env::consts::{ARCH, OS};
+use std::env::consts::OS;
 use std::process::Command;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum GpuAccelerationMode {
-    /// Apple Silicon: ARM64 + macOS
-    /// Use: Neural Engine (CoreML) for inference -> MPS (Metal GPU) for training/ops
-    NeuralEngineCoreMl,
-    
-    /// Intel Mac: x86_64 + macOS
-    /// Use: Metal GPU via PyTorch MPS. Do NOT attempt Neural Engine.
-    IntelMacMps,
-    
-    /// Linux/Windows + NVIDIA: CUDA
+    /// Linux + NVIDIA: CUDA
     /// For Linux multi-GPU: pick GPU with most free VRAM.
     Cuda { gpu_index: usize, free_vram_mb: u64 },
     
@@ -30,8 +22,6 @@ pub enum GpuAccelerationMode {
 impl std::fmt::Display for GpuAccelerationMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NeuralEngineCoreMl => write!(f, "Apple Silicon (CoreML + MPS)"),
-            Self::IntelMacMps => write!(f, "Intel Mac (MPS)"),
             Self::Cuda { gpu_index, free_vram_mb } => 
                 write!(f, "NVIDIA CUDA (GPU {}, {} MB Free)", gpu_index, free_vram_mb),
             Self::Rocm => write!(f, "AMD ROCm"),
@@ -43,14 +33,6 @@ impl std::fmt::Display for GpuAccelerationMode {
 
 pub fn detect_hardware() -> GpuAccelerationMode {
     match OS {
-        "macos" => {
-            if ARCH == "aarch64" {
-                GpuAccelerationMode::NeuralEngineCoreMl
-            } else {
-                // Intel Mac: x86_64 or other non-arm flags
-                GpuAccelerationMode::IntelMacMps
-            }
-        }
         "linux" => {
             if let Some((idx, vram)) = detect_nvidia_gpu() {
                 GpuAccelerationMode::Cuda { gpu_index: idx, free_vram_mb: vram }
@@ -62,19 +44,12 @@ pub fn detect_hardware() -> GpuAccelerationMode {
                 GpuAccelerationMode::CpuOnly
             }
         }
-        "windows" => {
-            if let Some((idx, vram)) = detect_nvidia_gpu() {
-                GpuAccelerationMode::Cuda { gpu_index: idx, free_vram_mb: vram }
-            } else {
-                GpuAccelerationMode::CpuOnly
-            }
-        }
         _ => GpuAccelerationMode::CpuOnly,
     }
 }
 
 fn command_exists(cmd: &str) -> bool {
-    let check_cmd = if OS == "windows" { format!("{}.exe", cmd) } else { cmd.to_string() };
+    let check_cmd = cmd.to_string();
     Command::new(check_cmd)
         .arg("--version")
         .output()

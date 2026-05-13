@@ -1,4 +1,4 @@
-use crate::model::{boundary_conditions::BoundaryConditions, PolygonData};
+use crate::model::{boundary_conditions::{BoundaryConditions, FacePlaneCondition}, PolygonData};
 use cpd::ExportData;
 use mesh::Mesh;
 use serde::{Deserialize, Serialize};
@@ -13,12 +13,18 @@ pub struct WithShape {
 pub struct WithBoundaryConditions {
     pub polygon_data: PolygonData,
     pub boundary_conditions: BoundaryConditions,
+    /// Axis-plane face conditions for 3D shapes
+    #[serde(default)]
+    pub face_3d_conditions: Vec<FacePlaneCondition>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WithMesh {
     pub polygon_data: PolygonData,
     pub boundary_conditions: BoundaryConditions,
+    /// Axis-plane face conditions for 3D shapes
+    #[serde(default)]
+    pub face_3d_conditions: Vec<FacePlaneCondition>,
     pub mesh: Arc<Mesh>,
 }
 
@@ -26,6 +32,8 @@ pub struct WithMesh {
 pub struct WithCpdExportData {
     pub polygon_data: PolygonData,
     pub boundary_conditions: BoundaryConditions,
+    #[serde(default)]
+    pub face_3d_conditions: Vec<FacePlaneCondition>,
     pub mesh: Arc<Mesh>,
     pub cpd_export_data: ExportData,
 }
@@ -78,18 +86,20 @@ impl Data<WithShape> {
     pub fn with_boundary_conditions(
         self,
         boundary_conditions: BoundaryConditions,
+        face_3d_conditions: Vec<FacePlaneCondition>,
     ) -> Data<WithBoundaryConditions> {
         Data {
             state: WithBoundaryConditions {
                 polygon_data: self.state.polygon_data,
                 boundary_conditions,
+                face_3d_conditions,
             },
         }
     }
 }
 
 impl Data<WithBoundaryConditions> {
-    pub fn without_boundary_conditions(self) -> (Data<WithShape>, BoundaryConditions) {
+    pub fn without_boundary_conditions(self) -> (Data<WithShape>, BoundaryConditions, Vec<FacePlaneCondition>) {
         (
             Data {
                 state: WithShape {
@@ -97,6 +107,7 @@ impl Data<WithBoundaryConditions> {
                 },
             },
             self.state.boundary_conditions,
+            self.state.face_3d_conditions,
         )
     }
 
@@ -105,6 +116,7 @@ impl Data<WithBoundaryConditions> {
             state: WithMesh {
                 polygon_data: self.state.polygon_data,
                 boundary_conditions: self.state.boundary_conditions,
+                face_3d_conditions: self.state.face_3d_conditions,
                 mesh,
             },
         }
@@ -118,6 +130,7 @@ impl Data<WithMesh> {
                 state: WithBoundaryConditions {
                     polygon_data: self.state.polygon_data,
                     boundary_conditions: self.state.boundary_conditions,
+                    face_3d_conditions: self.state.face_3d_conditions,
                 },
             },
             self.state.mesh,
@@ -129,6 +142,7 @@ impl Data<WithMesh> {
             state: WithCpdExportData {
                 polygon_data: self.state.polygon_data,
                 boundary_conditions: self.state.boundary_conditions,
+                face_3d_conditions: self.state.face_3d_conditions,
                 mesh: self.state.mesh,
                 cpd_export_data: export_data,
             },
@@ -143,6 +157,7 @@ impl Data<WithCpdExportData> {
                 state: WithMesh {
                     polygon_data: self.state.polygon_data,
                     boundary_conditions: self.state.boundary_conditions,
+                    face_3d_conditions: self.state.face_3d_conditions,
                     mesh: self.state.mesh,
                 },
             },

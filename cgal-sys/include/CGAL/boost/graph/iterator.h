@@ -216,7 +216,7 @@ public:
 
   explicit operator bool() const
   {
-    return (! (this->base() == nullptr));
+    return (! (g == nullptr));
   }
 
   bool operator==( const Self& i) const {
@@ -310,7 +310,7 @@ public:
 
   explicit operator bool() const
   {
-    return (! (this->base() == nullptr));
+    return (! (g == nullptr));
   }
 
   bool operator==( const Self& i) const {
@@ -402,7 +402,7 @@ public:
 
   explicit operator bool() const
   {
-    return (! (this->base() == nullptr));
+    return (! (g == nullptr));
   }
 
   bool operator==( const Self& i) const {

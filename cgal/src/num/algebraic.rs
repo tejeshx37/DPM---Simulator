@@ -163,6 +163,7 @@ where
     type Output = Algebraic;
 
     fn add(self, rhs: T) -> Self::Output {
+        let _lock = crate::lock();
         cgal_sys::add_algebraic(&self, &rhs.into()).into()
     }
 }
@@ -183,6 +184,7 @@ where
     type Output = Algebraic;
 
     fn sub(self, rhs: T) -> Self::Output {
+        let _lock = crate::lock();
         cgal_sys::sub_algebraic(&self, &rhs.into()).into()
     }
 }
@@ -203,6 +205,7 @@ where
     type Output = Algebraic;
 
     fn mul(self, rhs: T) -> Self::Output {
+        let _lock = crate::lock();
         cgal_sys::mul_algebraic(&self, &rhs.into()).into()
     }
 }
@@ -223,6 +226,7 @@ where
     type Output = Algebraic;
 
     fn div(self, rhs: T) -> Self::Output {
+        let _lock = crate::lock();
         cgal_sys::div_algebraic(&self, &rhs.into()).into()
     }
 }

@@ -16,6 +16,17 @@ mod ffi {
         LARGER = 1,
     }
 
+    struct Point3D {
+        x: f64,
+        y: f64,
+        z: f64,
+    }
+
+    struct Mesh3D {
+        vertices: Vec<Point3D>,
+        triangles: Vec<u32>,
+    }
+
     unsafe extern "C++" {
         include!("cgal-sys/cpp/curve.h");
         include!("cgal-sys/cpp/kernel.h");
@@ -26,6 +37,7 @@ mod ffi {
         include!("cgal-sys/cpp/polygon_with_holes.h");
         include!("cgal-sys/cpp/polygon.h");
         include!("cgal-sys/cpp/vector_utils.h");
+        include!("cgal-sys/cpp/polyhedron_set.h");
 
         type Algebraic;
         #[rust_name = "create_algebraic_from_i32"]
@@ -72,6 +84,8 @@ mod ffi {
         fn from_string(str: &CxxString) -> Result<UniquePtr<Rational>>;
         #[rust_name = "rational_to_string"]
         fn to_string(value: &Rational) -> UniquePtr<CxxString>;
+        #[rust_name = "rational_to_double"]
+        fn rational_to_double(value: &Rational) -> f64;
         #[rust_name = "rational_eq"]
         fn equals(a: &Rational, b: &Rational) -> bool;
 
@@ -200,6 +214,26 @@ mod ffi {
         fn hole_iterator(polygon: &PolygonWithHoles) -> UniquePtr<HoleIterator<'_>>;
         fn has_next(self: &HoleIterator) -> bool;
         fn next<'a>(self: Pin<&'a mut HoleIterator>) -> &'a Polygon;
+
+        type PolyhedronSet3;
+        fn create_polyhedron_set() -> UniquePtr<PolyhedronSet3>;
+        #[rust_name = "clone_polyhedron_set"]
+        fn create_polyhedron_set_clone(other: &PolyhedronSet3) -> UniquePtr<PolyhedronSet3>;
+        fn is_empty(self: &PolyhedronSet3) -> bool;
+        fn join(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3);
+        fn difference(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3);
+        fn intersection(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3);
+        
+        fn get_vertices(self: &PolyhedronSet3) -> UniquePtr<CxxVector<Point3D>>;
+        fn get_triangles(self: &PolyhedronSet3) -> UniquePtr<CxxVector<u32>>;
+        fn get_mesh(self: &PolyhedronSet3) -> Mesh3D;
+
+        fn create_cube(cx: &Rational, cy: &Rational, cz: &Rational, size: &Rational) -> UniquePtr<PolyhedronSet3>;
+        fn create_cuboid(cx: &Rational, cy: &Rational, cz: &Rational, width: &Rational, height: &Rational, depth: &Rational) -> UniquePtr<PolyhedronSet3>;
+        fn create_approximated_sphere(cx: &Rational, cy: &Rational, cz: &Rational, radius: &Rational, num_lat: u32, num_lon: u32) -> UniquePtr<PolyhedronSet3>;
+        fn create_approximated_cone(cx: &Rational, cy: &Rational, cz: &Rational, radius: &Rational, height: &Rational, num_segments: u32) -> UniquePtr<PolyhedronSet3>;
+        fn create_approximated_cylinder(cx: &Rational, cy: &Rational, cz: &Rational, radius: &Rational, height: &Rational, num_segments: u32) -> UniquePtr<PolyhedronSet3>;
+        fn create_extruded_polygon(pts_x: &[f64], pts_y: &[f64], height: &Rational) -> UniquePtr<PolyhedronSet3>;
 
         type PolygonSet;
         fn create_polygon_set() -> UniquePtr<PolygonSet>;

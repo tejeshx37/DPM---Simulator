@@ -73,6 +73,7 @@ impl From<&cgal_sys::PolygonWithHoles> for PolygonWithHoles {
 
 impl From<UniquePtr<cgal_sys::PolygonWithHoles>> for PolygonWithHoles {
     fn from(polygon: UniquePtr<cgal_sys::PolygonWithHoles>) -> Self {
+        let _lock = crate::lock();
         let outer_boundary = polygon.outer_boundary().into();
         let mut holes = Vec::with_capacity(polygon.number_of_holes() as usize);
         {

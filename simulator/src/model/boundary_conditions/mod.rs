@@ -1,3 +1,6 @@
+mod face_3d;
+pub use face_3d::{Axis3D, FacePlaneCondition, PlaneComparison};
+
 use super::{
     project::data::{Data, WithBoundaryConditions, WithShape},
     PolygonData,
@@ -9,10 +12,12 @@ use serde::{Deserialize, Serialize};
 
 pub type BoundaryConditions = FxHashMap<BoundaryId, BoundaryCondition>;
 
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Configurator {
     project_data: Data<WithShape>,
     boundary_conditions: BoundaryConditions,
+    face_3d_conditions: Vec<FacePlaneCondition>,
 }
 
 impl From<Data<WithShape>> for Configurator {
@@ -21,6 +26,7 @@ impl From<Data<WithShape>> for Configurator {
             boundary_conditions: Self::default_boundary_conditions(
                 &project_data.state().polygon_data,
             ),
+            face_3d_conditions: Vec::new(),
             project_data,
         }
     }
@@ -28,9 +34,11 @@ impl From<Data<WithShape>> for Configurator {
 
 impl From<Data<WithBoundaryConditions>> for Configurator {
     fn from(project_data: Data<WithBoundaryConditions>) -> Self {
-        let (project_data, boundary_conditions) = project_data.without_boundary_conditions();
+        let (project_data, boundary_conditions, face_3d_conditions) =
+            project_data.without_boundary_conditions();
         Self {
             boundary_conditions,
+            face_3d_conditions,
             project_data,
         }
     }
@@ -75,14 +83,22 @@ impl Configurator {
 
     pub fn project_data_with_bc(self) -> Data<WithBoundaryConditions> {
         self.project_data
-            .with_boundary_conditions(self.boundary_conditions)
+            .with_boundary_conditions(self.boundary_conditions, self.face_3d_conditions)
     }
 
     pub fn project_data_with_bc_cloned(&self) -> Data<WithBoundaryConditions> {
         puffin::profile_function!();
         self.project_data
             .clone()
-            .with_boundary_conditions(self.boundary_conditions.clone())
+            .with_boundary_conditions(self.boundary_conditions.clone(), self.face_3d_conditions.clone())
+    }
+
+    pub fn face_3d_conditions(&self) -> &Vec<FacePlaneCondition> {
+        &self.face_3d_conditions
+    }
+
+    pub fn face_3d_conditions_mut(&mut self) -> &mut Vec<FacePlaneCondition> {
+        &mut self.face_3d_conditions
     }
 
     pub fn get_condition(&self, id: &BoundaryId) -> Option<&BoundaryCondition> {

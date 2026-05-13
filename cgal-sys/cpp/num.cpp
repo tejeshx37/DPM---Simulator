@@ -1,4 +1,8 @@
 #include "num.h"
+#include <iostream>
+#include <sstream>
+#include <vector>
+#include <cmath>
 
 template <>
 std::unique_ptr<Algebraic> abs(const Algebraic &value)
@@ -32,10 +36,18 @@ std::unique_ptr<Rational> create_rational(const Rational &value)
     return std::make_unique<Rational>(value);
 }
 
+double rational_to_double(const Rational &value)
+{
+    return CGAL::to_double(value);
+}
+
+
 template <>
 std::unique_ptr<std::string> to_string(const Rational &value)
 {
-    return std::make_unique<std::string>(value.get_str());
+    std::stringstream ss;
+    ss << value;
+    return std::make_unique<std::string>(ss.str());
 }
 
 std::unique_ptr<Integer> create_integer(const Integer &value)
@@ -60,5 +72,7 @@ std::unique_ptr<Integer> abs(const Integer &value)
 template <>
 std::unique_ptr<std::string> to_string(const Integer &value)
 {
-    return std::make_unique<std::string>(value.get_str());
+    std::stringstream ss;
+    ss << value;
+    return std::make_unique<std::string>(ss.str());
 }

@@ -5,10 +5,10 @@
 ## Features
 
 - **High-Performance Physics Engine**: Built to handle complex nodal forces, body force modeling (e.g., gravity), and continuum interactions.
-- **Hardware-Accelerated Rendering & Compute**: Uses `wgpu` to leverage the host's GPU (Vulkan, Metal, DirectX 12) for rendering and compute tasks, with a fallback to CPU. Includes automatic hardware detection on startup.
+- **Hardware-Accelerated Rendering & Compute**: Uses `wgpu` to leverage the host's GPU (Vulkan) for rendering and compute tasks, with a fallback to CPU. Includes automatic hardware detection on startup.
 - **Advanced Computational Geometry**: Integrates the CGAL (Computational Geometry Algorithms Library) for reliable mesh and spatial operations.
 - **Interactive GUI & Analytics Dashboard**: Built natively with `egui`. Includes real-time viewport rendering, stress plots, dynamic camera tracking, and performance profiling via `puffin`.
-- **Cross-Platform Availability**: Automated CI/CD pipelines generate platform-specific release binaries (`.deb` for Linux, `.dmg` for macOS, `.nsis` for Windows) via `cargo-packager`.
+- **Cross-Platform Availability**: Automated CI/CD pipelines generate platform-specific release binaries (`.deb` for Linux) via `cargo-packager`.
 
 ## Project Structure
 
@@ -53,8 +53,7 @@ The simulator includes support for the `puffin` profiler. To run with profiling 
 
 If you experience rendering issues, you can explicitly set the `wgpu` backend via environment variables:
 
-- **Force Vulkan (Linux/Windows)**: `WGPU_BACKEND=vulkan cargo run --release`
-- **Force Metal (macOS)**: `WGPU_BACKEND=metal cargo run --release`
+- **Force Vulkan (Linux)**: `WGPU_BACKEND=vulkan cargo run --release`
 - **Disable GPU (CPU Fallback)**: `WGPU_BACKEND=cpu cargo run --release`
 
 ## Packaging and Distribution
@@ -62,8 +61,6 @@ If you experience rendering issues, you can explicitly set the `wgpu` backend vi
 The project uses `cargo-packager` to create distribution bundles. The CI pipeline automatically handles these builds for multiple platforms.
 
 Supported formats include:
-- `.dmg` (macOS 10.15+)
-- `nsis` (Windows)
 - `.deb` (Debian/Ubuntu Linux)
 
 To package manually (assuming `cargo-packager` is installed):

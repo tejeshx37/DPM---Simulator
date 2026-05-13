@@ -6,15 +6,9 @@ pub fn headers() -> PathBuf {
         return PathBuf::from(dir);
     }
 
-    if cfg!(target_os = "windows") {
-        PathBuf::from("C:\\msys64\\mingw64\\include")
-    } else if cfg!(target_os = "macos") {
-        if std::path::Path::new("/opt/homebrew/include").exists() {
-            PathBuf::from("/opt/homebrew/include")
-        } else {
-            PathBuf::from("/usr/local/include")
-        }
-    } else {
-        PathBuf::from("/usr/include")
+    if PathBuf::from("/opt/homebrew/include").exists() {
+        return PathBuf::from("/opt/homebrew/include");
     }
+
+    PathBuf::from("/usr/include")
 }

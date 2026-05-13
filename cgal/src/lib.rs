@@ -4,6 +4,7 @@ mod point;
 mod polygon;
 mod polygon_set;
 mod polygon_with_holes;
+pub mod polyhedron_set;
 pub mod triangulation;
 
 use std::sync::Mutex;
@@ -40,6 +41,7 @@ pub use point::Point;
 pub use polygon::Polygon;
 pub use polygon_set::{
     Coordinate, Input as PolygonSetInput, InputKind as PolygonSetInputKind, PolygonSet,
-    RationalPoint,
+    RationalPoint, RationalPoint3,
 };
 pub use polygon_with_holes::{BoundaryId, PolygonWithHoles};
+pub use polyhedron_set::PolyhedronSet;

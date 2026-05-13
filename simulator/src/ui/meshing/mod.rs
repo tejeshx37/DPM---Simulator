@@ -150,13 +150,9 @@ impl Page {
             .frame(Frame::default())
             .show_inside(ui, |ui| {
                 let is_mesh = matches!(self.state_receiver.data, State::Mesh(_));
+                let auto = self.needs_reset;
                 
-                let state_id = ui.id().with("last_is_mesh");
-                let last_is_mesh = ui.data_mut(|d| d.get_temp::<bool>(state_id).unwrap_or(false));
-                ui.data_mut(|d| d.insert_temp(state_id, is_mesh));
-                
-                let auto = !is_mesh || (is_mesh && !last_is_mesh) || self.needs_reset;
-                if auto {
+                if self.needs_reset {
                     self.needs_reset = false;
                 }
                 
@@ -219,8 +215,7 @@ impl Page {
         let state = self.state_receiver.data.clone();
         match state {
             State::Idle | State::GeneratingMesh(_) => {
-                let geometry = self.mesh_generator.polygon_data().plot_geometry();
-                plot_utils::plot_cached_geometry(ui, geometry, plot_utils::default_transform);
+                plot_utils::plot_solid_geometry(ui, self.mesh_generator.polygon_data(), self.rotation_x, self.rotation_y);
             }
             State::Mesh(mesh) => {
                 let projector = plot_utils::Projector::new(self.rotation_x, self.rotation_y);
@@ -236,7 +231,10 @@ impl Page {
         // Parallel projection of all mesh vertices
         let projected_vertices: Vec<[f64; 2]> = data.vertices()
             .par_iter()
-            .map(|v| projector.project([v.point().x, v.point().y, v.point().z]))
+            .map(|v| {
+                let p = projector.project([v.point().x, v.point().y, v.point().z]);
+                [p[0], p[1]]
+            })
             .collect();
 
         if !self.hide_mesh {
@@ -339,12 +337,15 @@ impl Page {
                         }
                         let p1 = projector.project([arr[0].x as f32, arr[0].y as f32, arr[0].z as f32]);
                         let p2 = projector.project([arr[1].x as f32, arr[1].y as f32, arr[1].z as f32]);
-                        ui.line(Line::new(vec![p1, p2]).color(Color32::GREEN).width(1.2));
+                        ui.line(Line::new(vec![[p1[0], p1[1]], [p2[0], p2[1]]]).color(Color32::GREEN).width(1.2));
                     }
                     Constraint::PolyLine(points) => {
                         let projected: Vec<[f64; 2]> = points.iter()
                             .filter(|p| !self.slice_enabled || (p[0].z as f32) >= self.slice_z)
-                            .map(|p| projector.project([p[0].x as f32, p[0].y as f32, p[0].z as f32]))
+                            .map(|p| {
+                                let proj = projector.project([p[0].x as f32, p[0].y as f32, p[0].z as f32]);
+                                [proj[0], proj[1]]
+                            })
                             .collect();
                         if !projected.is_empty() {
                             ui.line(Line::new(projected).color(Color32::GREEN).width(1.2));

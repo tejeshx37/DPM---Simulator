@@ -6,8 +6,9 @@ use crate::model::{
     project::data::{Data, WithShape},
     shape_configurator::{Configurator, Snapshot, State},
     state_channel::{self, Receiver, STReceiver},
+    PolygonData,
 };
-use cgal::{PolygonSet, PolygonSetInput};
+use cgal::PolygonSetInput;
 use egui::{Button, CentralPanel, Frame, Key, Modifiers, SidePanel, Ui, Rounding};
 use enum_map::EnumMap;
 use shape::Shape;
@@ -40,9 +41,12 @@ pub struct Page {
     mode: Mode,
     state_receiver: STReceiver<State>,
     error_receiver: Receiver<String, Option<String>>,
-    polygon_set: Option<(Uuid, PolygonSet)>,
+    polygon_data: Option<(Uuid, PolygonData)>,
     #[allow(dead_code)]
     sidebar_anim: f32,
+    rotation_x: f32,
+    rotation_y: f32,
+    needs_reset: bool,
 }
 
 impl Default for Page {
@@ -64,38 +68,45 @@ impl From<Data<WithShape>> for Page {
             mode: Mode::default(),
             state_receiver,
             error_receiver,
-            polygon_set: None,
+            polygon_data: None,
             sidebar_anim: 1.0,
+            rotation_x: 0.5,
+            rotation_y: 0.5,
+            needs_reset: false,
         }
     }
 }
 
 impl Page {
-    fn update_polygon_set(polygon_set: &mut Option<(Uuid, PolygonSet)>, snapshot: &Snapshot) {
-        let id_matches = polygon_set
+    fn update_polygon_data(&mut self, snapshot: &Snapshot) {
+        let id_matches = self.polygon_data
             .as_ref()
             .is_some_and(|(id, _)| snapshot.id().eq(id));
         if id_matches {
             return;
         }
-        polygon_set.replace((snapshot.id(), snapshot.polygon_set()));
+        self.polygon_data.replace((snapshot.id(), snapshot.polygon_data()));
     }
 
-    fn polygon_set(&self) -> Option<&PolygonSet> {
-        self.polygon_set
+    fn polygon_data(&self) -> Option<&PolygonData> {
+        self.polygon_data
             .as_ref()
-            .map(|(_, polygon_set)| polygon_set)
+            .map(|(_, data)| data)
     }
 
     pub fn add_menu_items(&mut self, ui: &mut Ui) {
         puffin::profile_function!();
-        let State::Generated(snapshot) = self
-            .state_receiver
-            .update_and_get()
-            .expect("Sender should not be dropped")
-        else {
+        let snapshot_data = {
+            self.state_receiver
+                .update_and_get()
+                .expect("Sender should not be dropped")
+                .clone()
+        };
+            
+        let State::Generated(snapshot) = snapshot_data else {
             return;
         };
+        self.update_polygon_data(&snapshot);
         if !snapshot.can_undo() && !snapshot.can_redo() {
             return;
         }
@@ -136,9 +147,9 @@ impl Page {
             .update()
             .expect("Sender should not be dropped");
 
-        match &self.state_receiver.data {
-            State::Processing => {}
-            State::Generated(snapshot) => Self::update_polygon_set(&mut self.polygon_set, snapshot),
+        let state_clone = self.state_receiver.data.clone();
+        if let State::Generated(snapshot) = state_clone {
+            self.update_polygon_data(&snapshot);
         }
 
         enum BottomPanelResponse {
@@ -208,7 +219,7 @@ impl Page {
 
         CentralPanel::default()
             .frame(Frame::default())
-            .show_inside(ui, |ui| Self::add_preview(ui, self.polygon_set()));
+            .show_inside(ui, |ui| self.add_preview(ui));
 
         if let Some(err) = &self
             .error_receiver
@@ -227,25 +238,6 @@ impl Page {
             return Response::Noop(self);
         }
 
-        let Some(shape) = self.selected_shape else {
-            return Response::Noop(self);
-        };
-        let state = self.dialog_states[shape].get_or_insert_with(|| dialog::State::from(shape));
-        match dialog::show(state, ui.ctx()) {
-            dialog::Response::Noop => {}
-            dialog::Response::Input(result) => match result {
-                Ok(kind) => {
-                    let input = match self.mode {
-                        Mode::Join => PolygonSetInput::Join(kind),
-                        Mode::Difference => PolygonSetInput::Difference(kind),
-                    };
-                    self.configurator.join_or_diff(input);
-                    self.selected_shape = None;
-                }
-                Err(err) => self.input_error = err.into(),
-            },
-            dialog::Response::Cancel => self.selected_shape = None,
-        }
         Response::Noop(self)
     }
 
@@ -258,14 +250,44 @@ impl Page {
                         .vertical(|ui| {
                             Shape::iter()
                                 .filter(|shape| ui.button(shape.to_string()).clicked())
-                                .last()
+                                .next()
                         })
                         .inner;
                     if let Some(shape) = opt {
                         self.selected_shape = Some(shape);
+                        self.dialog_states[shape] = Some(dialog::State::from(shape));
+                    }
+                    
+                    ui.add_space(10.0);
+                    if ui.button(format!("{} Reset View", crate::ui::unicode_symbols::REFRESH)).clicked() {
+                        self.rotation_x = 0.5;
+                        self.rotation_y = 0.5;
+                        self.needs_reset = true;
                     }
                 });
             });
+
+            if let Some(shape) = self.selected_shape {
+                ui.add_space(12.0);
+                super::premium::premium_card(ui, "✏ Properties", |ui| {
+                    let state = self.dialog_states[shape].get_or_insert_with(|| dialog::State::from(shape));
+                    match dialog::show_in_ui(state, ui) {
+                        dialog::Response::Noop => {}
+                        dialog::Response::Input(result) => match result {
+                            Ok(kind) => {
+                                let input = match self.mode {
+                                    Mode::Join => PolygonSetInput::Join(kind),
+                                    Mode::Difference => PolygonSetInput::Difference(kind),
+                                };
+                                self.configurator.join_or_diff(input);
+                                self.selected_shape = None;
+                            }
+                            Err(err) => self.input_error = Some(err.into()),
+                        },
+                        dialog::Response::Cancel => self.selected_shape = None,
+                    }
+                });
+            }
 
             ui.add_space(12.0);
             super::premium::premium_card(ui, "⚙ Mode", |ui| {
@@ -326,30 +348,48 @@ impl Page {
         new_mode
     }
 
-    fn add_preview(ui: &mut Ui, polygon_set: Option<&PolygonSet>) {
+    fn add_preview(&mut self, ui: &mut Ui) {
+        let mut rotation_x = self.rotation_x;
+        let mut rotation_y = self.rotation_y;
         ui.centered_and_justified(|ui| {
             let mut show_empty_canvas = || {
                 egui::Frame::canvas(ui.style()).show(ui, |ui| {
                     ui.label("There is nothing to show here. Try adding some shapes!")
                 });
             };
-            match polygon_set {
-                Some(polygon_set) => {
-                    if polygon_set.is_empty() {
+            let auto = self.needs_reset;
+            if auto { self.needs_reset = false; }
+
+            match self.polygon_data() {
+                Some(polygon_data) => {
+                    let ps = polygon_data.polygon_set();
+                    if ps.is_empty() {
                         show_empty_canvas()
                     } else {
-                        plot_utils::plot("drawing_plot").show(ui, |ui| {
-                            plot_utils::plot_polygon_set(
-                                ui,
-                                polygon_set,
-                                plot_utils::default_transform,
-                            );
+                        plot_utils::plot("drawing_plot")
+                            .auto_bounds(egui::Vec2b::new(auto, auto))
+                            .show_background(false)
+                            .show_axes(false)
+                            .show_grid(false)
+                            .show(ui, |ui| {
+                            if ui.response().dragged_by(egui::PointerButton::Secondary) {
+                                let delta = ui.response().drag_delta();
+                                rotation_y += delta.x * 0.01;
+                                rotation_x += delta.y * 0.01;
+                            }
+                            
+                            // 3D Rendering (Phase 3)
+                            plot_utils::plot_solid_geometry(ui, polygon_data, rotation_x, rotation_y);
+
+                            super::gnomon::draw_gnomon(ui, &mut rotation_x, &mut rotation_y);
                         });
                     }
                 }
                 None => show_empty_canvas(),
             }
         });
+        self.rotation_x = rotation_x;
+        self.rotation_y = rotation_y;
     }
 }
 

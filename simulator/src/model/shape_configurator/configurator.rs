@@ -18,7 +18,7 @@ pub struct Snapshot {
     pub inputs: Vec<PolygonSetInput>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum State {
     Processing,
     Generated(Snapshot),
@@ -126,11 +126,16 @@ impl Snapshot {
         self.num_polygons
     }
 
+    #[allow(dead_code)]
     pub fn polygon_set(&self) -> PolygonSet {
         PolygonSet::from_inputs(&self.inputs).unwrap_or_else(|err| {
             log::error!("Invalid snapshot polygon inputs: {err}");
             PolygonSet::default()
         })
+    }
+
+    pub fn polygon_data(&self) -> PolygonData {
+        PolygonData::new(self.inputs.clone())
     }
 }
 

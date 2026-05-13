@@ -74,11 +74,7 @@ where
     I: IntoIterator,
     I::Item: AsRef<OsStr>,
 {
-    let (shell, arg, ext) = if cfg!(windows) {
-        ("cmd", Some("/C"), "bat")
-    } else {
-        ("sh", None, "sh")
-    };
+    let (shell, arg, ext) = ("sh", None::<&str>, "sh");
     let mut args: VecDeque<OsString> = args.into_iter().map(|arg| OsString::from(&arg)).collect();
     args.push_front(format!("{script_name}.{ext}").into());
     if let Some(arg) = arg {

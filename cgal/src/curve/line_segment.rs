@@ -85,6 +85,7 @@ impl PartialEq for Data {
 
 impl From<UniquePtr<cgal_sys::XMonotoneCurve>> for Data {
     fn from(ptr: UniquePtr<cgal_sys::XMonotoneCurve>) -> Self {
+        let _lock = crate::lock();
         assert!(ptr.is_special_segment());
         Data {
             end_points: (&*ptr).into(),
@@ -96,6 +97,7 @@ impl From<UniquePtr<cgal_sys::XMonotoneCurve>> for Data {
 
 impl Data {
     fn new(start: &Point, end: &Point) -> Result<Self, String> {
+        let _lock = crate::lock();
         cgal_sys::construct_linear_curve(start, end)
             .map(Into::into)
             .map_err(|err| err.to_string())
@@ -192,6 +194,7 @@ impl LineSegment {
 
 impl From<Data> for LineSegment {
     fn from(data: Data) -> Self {
+        let _lock = crate::lock();
         if cgal_sys::is_horizontal(&data.inner) {
             LineSegment::Horizontal(Horizontal(data))
         } else if data.inner.is_vertical() {

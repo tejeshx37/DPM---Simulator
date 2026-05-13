@@ -4,13 +4,12 @@ use crate::{
         Data as PVData, Output as PVOutput, PolygonVerticesParser as PVParser,
     },
     ui::{
-        always_open_window::AlwaysOpenWindow,
-        dialog_utils::{self, ok_cancel},
+        dialog_utils,
         error_dialog,
     },
 };
 use cgal::{num::Rational, PolygonSetInputKind, RationalPoint};
-use egui::{Align, Button, Context, Layout, ScrollArea, Ui};
+use egui::{Align, Button, Layout, ScrollArea, Ui};
 use rfd::FileDialog;
 use std::{
     cell::OnceCell,
@@ -42,6 +41,35 @@ impl From<&RationalPoint> for RationalPointInput {
             x: value.x.to_string(),
             y: value.y.to_string(),
         }
+    }
+}
+
+#[derive(Debug)]
+struct RationalPoint3Input {
+    x: String,
+    y: String,
+    z: String,
+}
+
+impl Default for RationalPoint3Input {
+    fn default() -> Self {
+        Self {
+            x: String::from("0"),
+            y: String::from("0"),
+            z: String::from("0"),
+        }
+    }
+}
+
+impl TryInto<cgal::RationalPoint3> for &RationalPoint3Input {
+    type Error = String;
+
+    fn try_into(self) -> Result<cgal::RationalPoint3, Self::Error> {
+        self.x.parse().and_then(|x: Rational| {
+            self.y.parse().and_then(|y| {
+                self.z.parse().map(|z| cgal::RationalPoint3::new(x, y, z))
+            })
+        })
     }
 }
 
@@ -264,12 +292,13 @@ enum InputState {
     Cube(CubeInputState),
     Cuboid(CuboidInputState),
     Cone(ConeInputState),
+    Cylinder(CylinderInputState),
     Sphere(SphereInputState),
 }
 
 #[derive(Debug, Default)]
 struct CubeInputState {
-    center: RationalPointInput,
+    center: RationalPoint3Input,
     side_length: String,
 }
 
@@ -285,7 +314,7 @@ impl TryInto<PolygonSetInputKind> for &CubeInputState {
 
 #[derive(Debug, Default)]
 struct CuboidInputState {
-    center: RationalPointInput,
+    center: RationalPoint3Input,
     width: String,
     height: String,
     depth: String,
@@ -305,7 +334,7 @@ impl TryInto<PolygonSetInputKind> for &CuboidInputState {
 
 #[derive(Debug, Default)]
 struct ConeInputState {
-    center: RationalPointInput,
+    center: RationalPoint3Input,
     radius: String,
     height: String,
 }
@@ -322,8 +351,26 @@ impl TryInto<PolygonSetInputKind> for &ConeInputState {
 }
 
 #[derive(Debug, Default)]
+struct CylinderInputState {
+    center: RationalPoint3Input,
+    radius: String,
+    height: String,
+}
+
+impl TryInto<PolygonSetInputKind> for &CylinderInputState {
+    type Error = String;
+    fn try_into(self) -> Result<PolygonSetInputKind, Self::Error> {
+        Ok(PolygonSetInputKind::Cylinder {
+            center: (&self.center).try_into()?,
+            radius: self.radius.parse()?,
+            height: self.height.parse()?,
+        })
+    }
+}
+
+#[derive(Debug, Default)]
 struct SphereInputState {
-    center: RationalPointInput,
+    center: RationalPoint3Input,
     radius: String,
 }
 
@@ -349,6 +396,7 @@ impl TryInto<PolygonSetInputKind> for &InputState {
             InputState::Cube(input) => input.try_into(),
             InputState::Cuboid(input) => input.try_into(),
             InputState::Cone(input) => input.try_into(),
+            InputState::Cylinder(input) => input.try_into(),
             InputState::Sphere(input) => input.try_into(),
         }
     }
@@ -372,6 +420,7 @@ impl From<Shape> for State {
                 Shape::Cube => InputState::Cube(CubeInputState::default()),
                 Shape::Cuboid => InputState::Cuboid(CuboidInputState::default()),
                 Shape::Cone => InputState::Cone(ConeInputState::default()),
+                Shape::Cylinder => InputState::Cylinder(CylinderInputState::default()),
                 Shape::Sphere => InputState::Sphere(SphereInputState::default()),
             },
         }
@@ -390,25 +439,23 @@ pub enum Response {
     Cancel,
 }
 
-pub fn show(state: &mut State, ctx: &Context) -> Response {
-    AlwaysOpenWindow::new(state.dialog_title())
-        .resizable(false)
-        .default_width(340.0)
-        .max_height(460.0)
-        .show(ctx, |ui| {
-            ui.add_space(INPUT_SECTION_MARGIN);
-            ui.group(|ui| input_table_layout(&mut state.input_state, ui));
-            ui.add_space(INPUT_SECTION_MARGIN);
-            ui.with_layout(
-                Layout::right_to_left(Align::Min),
-                |ui| match ok_cancel::buttons(ui) {
-                    ok_cancel::Response::Ok => Response::Input((&state.input_state).try_into()),
-                    ok_cancel::Response::Cancel => Response::Cancel,
-                    ok_cancel::Response::Noop => Response::Noop,
-                },
-            )
-            .inner
-        })
+pub fn show_in_ui(state: &mut State, ui: &mut Ui) -> Response {
+    let mut response = Response::Noop;
+    ui.group(|ui| {
+        ui.label(egui::RichText::new(state.dialog_title()).strong());
+        ui.add_space(INPUT_SECTION_MARGIN);
+        input_table_layout(&mut state.input_state, ui);
+        ui.add_space(INPUT_SECTION_MARGIN);
+        ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+            if ui.button("Cancel").clicked() {
+                response = Response::Cancel;
+            }
+            if ui.button("Apply").clicked() {
+                response = Response::Input((&state.input_state).try_into());
+            }
+        });
+    });
+    response
 }
 
 fn input_table_layout(input_state: &mut InputState, ui: &mut Ui) {
@@ -420,6 +467,7 @@ fn input_table_layout(input_state: &mut InputState, ui: &mut Ui) {
         InputState::Cube(input) => cube_dialog_body(ui, input),
         InputState::Cuboid(input) => cuboid_dialog_body(ui, input),
         InputState::Cone(input) => cone_dialog_body(ui, input),
+        InputState::Cylinder(input) => cylinder_dialog_body(ui, input),
         InputState::Sphere(input) => sphere_dialog_body(ui, input),
     }
 }
@@ -437,6 +485,17 @@ fn x_y_input_field(ui: &mut Ui, x: &mut String, y: &mut String) {
             value: y,
         },
     );
+}
+
+fn x_y_z_input_field(ui: &mut Ui, x: &mut String, y: &mut String, z: &mut String) {
+    ui.horizontal(|ui| {
+        ui.label("X");
+        ui.text_edit_singleline(x);
+        ui.label("Y");
+        ui.text_edit_singleline(y);
+        ui.label("Z");
+        ui.text_edit_singleline(z);
+    });
 }
 
 fn rectangle_dialog_body(ui: &mut Ui, input: &mut RectInputState) {
@@ -549,7 +608,7 @@ fn ellipse_dialog_body(ui: &mut Ui, input: &mut EllipseInputState) {
 fn cube_dialog_body(ui: &mut Ui, input: &mut CubeInputState) {
     ui.horizontal(|ui| {
         ui.label("Origin");
-        x_y_input_field(ui, &mut input.center.x, &mut input.center.y);
+        x_y_z_input_field(ui, &mut input.center.x, &mut input.center.y, &mut input.center.z);
     });
     ui.horizontal(|ui| {
         ui.label("Side Length");
@@ -560,7 +619,7 @@ fn cube_dialog_body(ui: &mut Ui, input: &mut CubeInputState) {
 fn cuboid_dialog_body(ui: &mut Ui, input: &mut CuboidInputState) {
     ui.horizontal(|ui| {
         ui.label("Origin");
-        x_y_input_field(ui, &mut input.center.x, &mut input.center.y);
+        x_y_z_input_field(ui, &mut input.center.x, &mut input.center.y, &mut input.center.z);
     });
     ui.horizontal(|ui| {
         ui.label("Width");
@@ -579,7 +638,22 @@ fn cuboid_dialog_body(ui: &mut Ui, input: &mut CuboidInputState) {
 fn cone_dialog_body(ui: &mut Ui, input: &mut ConeInputState) {
     ui.horizontal(|ui| {
         ui.label("Origin");
-        x_y_input_field(ui, &mut input.center.x, &mut input.center.y);
+        x_y_z_input_field(ui, &mut input.center.x, &mut input.center.y, &mut input.center.z);
+    });
+    ui.horizontal(|ui| {
+        ui.label("Radius");
+        ui.text_edit_singleline(&mut input.radius);
+    });
+    ui.horizontal(|ui| {
+        ui.label("Height");
+        ui.text_edit_singleline(&mut input.height);
+    });
+}
+
+fn cylinder_dialog_body(ui: &mut Ui, input: &mut CylinderInputState) {
+    ui.horizontal(|ui| {
+        ui.label("Origin");
+        x_y_z_input_field(ui, &mut input.center.x, &mut input.center.y, &mut input.center.z);
     });
     ui.horizontal(|ui| {
         ui.label("Radius");
@@ -594,7 +668,7 @@ fn cone_dialog_body(ui: &mut Ui, input: &mut ConeInputState) {
 fn sphere_dialog_body(ui: &mut Ui, input: &mut SphereInputState) {
     ui.horizontal(|ui| {
         ui.label("Origin");
-        x_y_input_field(ui, &mut input.center.x, &mut input.center.y);
+        x_y_z_input_field(ui, &mut input.center.x, &mut input.center.y, &mut input.center.z);
     });
     ui.horizontal(|ui| {
         ui.label("Radius");

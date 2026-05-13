@@ -19,6 +19,7 @@ impl<'a> AlwaysOpenWindow<'a> {
         Self(self.0.default_height(default_height))
     }
 
+    #[allow(dead_code)]
     pub fn max_height(self, max_height: f32) -> Self {
         Self(self.0.max_height(max_height))
     }

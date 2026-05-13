@@ -1,10 +1,12 @@
 use nalgebra::{Matrix3, Vector3};
 
 // WGSL translated logic
+#[allow(dead_code)]
 fn cross(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
     a.cross(&b)
 }
 
+#[allow(dead_code)]
 fn dot(a: Vector3<f32>, b: Vector3<f32>) -> f32 {
     a.dot(&b)
 }

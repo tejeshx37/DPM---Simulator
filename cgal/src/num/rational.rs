@@ -58,6 +58,14 @@ impl Deref for Rational {
     }
 }
 
+impl Rational {
+    pub fn to_f64(&self) -> f64 {
+        let _lock = crate::lock();
+        cgal_sys::rational_to_double(self)
+    }
+}
+
+
 impl Clone for Rational {
     fn clone(&self) -> Self {
         let _lock = crate::lock();
@@ -76,6 +84,7 @@ impl Drop for Rational {
 
 impl PartialEq for Rational {
     fn eq(&self, other: &Self) -> bool {
+        let _lock = crate::lock();
         cgal_sys::rational_eq(self, other)
     }
 }

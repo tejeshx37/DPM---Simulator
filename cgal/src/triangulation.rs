@@ -34,6 +34,7 @@ pub struct Vertex {
 
 impl From<&cgal_sys::triangulation::Vertex> for Vertex {
     fn from(value: &cgal_sys::triangulation::Vertex) -> Self {
+        let _lock = crate::lock();
         let point = cgal_sys::triangulation::get_point(value);
         Self {
             point: Vector3::new(
@@ -59,6 +60,7 @@ pub struct Data {
 
 impl From<UniquePtr<cgal_sys::triangulation::Data>> for Data {
     fn from(value: UniquePtr<cgal_sys::triangulation::Data>) -> Self {
+        let _lock = crate::lock();
         Self {
             faces: value.faces().iter().map(Into::into).collect(),
             edges: value.edges().iter().map(Into::into).collect(),

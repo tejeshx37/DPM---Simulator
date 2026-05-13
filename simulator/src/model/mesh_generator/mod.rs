@@ -189,36 +189,54 @@ impl<T: RefreshToken> Worker<T> {
                     refresh_token.refresh();
                 }};
             }
-            let polygon_set = match PolygonSet::from_inputs(&input.polygon_set_inputs) {
+            let polyhedron_set = match cgal::PolyhedronSet::from_inputs(&input.polygon_set_inputs) {
                 Ok(ps) => ps,
                 Err(err) => {
                     send_err!(err);
                     continue;
                 }
             };
-            let polygons = polygon_set.polygon_with_holes();
-            if polygons.is_empty() {
-                send_err!(String::from("No polygons found in the current configuration. Please ensure you have drawn at least one shape."));
-                continue;
-            }
-            let primitive = if input.polygon_set_inputs.len() == 1 {
-                match &input.polygon_set_inputs[0] {
-                    cgal::PolygonSetInput::Join(kind) => Some(kind),
-                    _ => None,
-                }
+            
+            let result = if polyhedron_set.get_vertices().len() > 0 {
+                Mesh::generate_from_polyhedron(
+                    &polyhedron_set,
+                    input.num_points,
+                    input.size_bound_override,
+                    Callback::from(|state| send_state_discard_err!(State::GeneratingMesh(state))),
+                )
             } else {
-                None
+                let polygon_set = match PolygonSet::from_inputs(&input.polygon_set_inputs) {
+                    Ok(ps) => ps,
+                    Err(err) => {
+                        send_err!(err);
+                        continue;
+                    }
+                };
+                let polygons = polygon_set.polygon_with_holes();
+                if polygons.is_empty() {
+                    send_err!(String::from("No polygons found in the current configuration. Please ensure you have drawn at least one shape."));
+                    continue;
+                }
+                let primitive = if input.polygon_set_inputs.len() == 1 {
+                    match &input.polygon_set_inputs[0] {
+                        cgal::PolygonSetInput::Join(kind) => Some(kind),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+
+                Mesh::generate(
+                    &polygons[0],
+                    input.num_points,
+                    input.size_bound_override,
+                    input.thickness,
+                    primitive,
+                    input.seeding_config,
+                    Callback::from(|state| send_state_discard_err!(State::GeneratingMesh(state))),
+                )
             };
 
-            let result = Mesh::generate(
-                &polygons[0],
-                input.num_points,
-                input.size_bound_override,
-                input.thickness,
-                primitive,
-                input.seeding_config,
-                Callback::from(|state| send_state_discard_err!(State::GeneratingMesh(state))),
-            );
             match result {
                 Ok(mesh) => {
                     send_state!(State::Mesh(Arc::new(mesh)));

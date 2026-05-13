@@ -7,25 +7,8 @@ on:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            artifact_name: dpm-simulator-linux
-            package_format: deb
-            binary_name: simulator-linux
-          - os: windows-latest
-            artifact_name: dpm-simulator-windows
-            package_format: nsis
-            binary_name: simulator-windows.exe
-          - os: macos-latest
-            artifact_name: dpm-simulator-macos
-            package_format: dmg
-            binary_name: simulator-macos
+    name: Build (ubuntu-latest)
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -33,28 +16,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Dependencies (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libcgal-dev libboost-all-dev libgmp-dev libmpfr-dev
-
-      - name: Install Dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install cgal boost gmp mpfr
-
-      - name: Install Dependencies (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            mingw-w64-x86_64-cgal
-            mingw-w64-x86_64-boost
-            mingw-w64-x86_64-gmp
-            mingw-w64-x86_64-mpfr
 
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
@@ -65,23 +30,18 @@ jobs:
           # Build the simulator binary
           cargo build --release -p simulator
           
-          # Rename the binary to the platform-specific name
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            cp target/release/simulator.exe target/release/${{ matrix.binary_name }}
-          else
-            cp target/release/simulator target/release/${{ matrix.binary_name }}
-          fi
+          # Rename the binary
+          cp target/release/simulator target/release/simulator-linux
           
           # Run packager from the simulator directory
-          # We pass the binary name to ensure it packages the renamed one
           cd simulator
-          cargo packager --release --verbose --formats ${{ matrix.package_format }}
+          cargo packager --release --verbose --formats deb
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
+          name: dpm-simulator-linux
           path: |
             simulator/dist/*
-            target/release/${{ matrix.binary_name }}
+            target/release/simulator-linux
 
