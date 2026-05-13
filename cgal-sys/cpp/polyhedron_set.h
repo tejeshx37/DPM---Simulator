@@ -8,14 +8,20 @@
 #include "kernel.h"
 #include "num.h"
 #include <memory>
-
-class PolyhedronSet3;
+#include <vector>
+#include <cstdint>
 
 // Separate kernel just for Nef ops — must be EPECK
 typedef CGAL::Exact_predicates_exact_constructions_kernel NefKernel;
 typedef CGAL::Nef_polyhedron_3<NefKernel>                Nef_polyhedron;
 
-#include "cgal-sys/src/lib.rs.h"
+#include <vector>
+#include <memory>
+#include "rust/cxx.h"
+
+// Forward-declare CXX bridge types (defined in generated src/lib.rs.h)
+struct Mesh3D;
+struct Point3D;
 
 class PolyhedronSet3 {
 public:
@@ -29,8 +35,8 @@ public:
     void difference(const PolyhedronSet3& other);
     void intersection(const PolyhedronSet3& other);
 
+    void get_mesh_data(std::vector<double>& out_vertices, std::vector<uint32_t>& out_triangles) const;
     Mesh3D get_mesh() const;
-    void get_mesh(std::vector<Point3D>& out_vertices, std::vector<uint32_t>& out_triangles) const;
     std::unique_ptr<std::vector<Point3D>> get_vertices() const;
     std::unique_ptr<std::vector<uint32_t>> get_triangles() const;
 };
@@ -43,4 +49,9 @@ std::unique_ptr<PolyhedronSet3> create_approximated_sphere(const Rational& cx, c
 std::unique_ptr<PolyhedronSet3> create_approximated_cone(const Rational& cx, const Rational& cy, const Rational& cz, const Rational& radius, const Rational& height, uint32_t num_segments);
 std::unique_ptr<PolyhedronSet3> create_approximated_cylinder(const Rational& cx, const Rational& cy, const Rational& cz, const Rational& radius, const Rational& height, uint32_t num_segments);
 std::unique_ptr<PolyhedronSet3> create_extruded_polygon(rust::Slice<const double> pts_x, rust::Slice<const double> pts_y, const Rational& height);
+
+// CXX Bridge free-function wrappers
+Mesh3D get_mesh(const PolyhedronSet3& set);
+std::unique_ptr<std::vector<Point3D>> get_vertices(const PolyhedronSet3& set);
+std::unique_ptr<std::vector<uint32_t>> get_triangles(const PolyhedronSet3& set);
 

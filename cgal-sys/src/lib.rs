@@ -220,13 +220,13 @@ mod ffi {
         #[rust_name = "clone_polyhedron_set"]
         fn create_polyhedron_set_clone(other: &PolyhedronSet3) -> UniquePtr<PolyhedronSet3>;
         fn is_empty(self: &PolyhedronSet3) -> bool;
-        fn join(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3);
-        fn difference(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3);
-        fn intersection(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3);
+        fn join(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3) -> Result<()>;
+        fn difference(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3) -> Result<()>;
+        fn intersection(self: Pin<&mut PolyhedronSet3>, other: &PolyhedronSet3) -> Result<()>;
         
-        fn get_vertices(self: &PolyhedronSet3) -> UniquePtr<CxxVector<Point3D>>;
-        fn get_triangles(self: &PolyhedronSet3) -> UniquePtr<CxxVector<u32>>;
-        fn get_mesh(self: &PolyhedronSet3) -> Mesh3D;
+        fn get_vertices(set: &PolyhedronSet3) -> UniquePtr<CxxVector<Point3D>>;
+        fn get_triangles(set: &PolyhedronSet3) -> UniquePtr<CxxVector<u32>>;
+        fn get_mesh(set: &PolyhedronSet3) -> Mesh3D;
 
         fn create_cube(cx: &Rational, cy: &Rational, cz: &Rational, size: &Rational) -> UniquePtr<PolyhedronSet3>;
         fn create_cuboid(cx: &Rational, cy: &Rational, cz: &Rational, width: &Rational, height: &Rational, depth: &Rational) -> UniquePtr<PolyhedronSet3>;

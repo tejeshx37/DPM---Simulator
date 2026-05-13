@@ -1,3 +1,4 @@
+#define CGAL_USE_CORE
 #include "polyhedron_set.h"
 #include <CGAL/Nef_polyhedron_3.h>
 #include <CGAL/Polyhedron_3.h>
@@ -7,6 +8,10 @@
 #include <CGAL/convex_hull_3.h>
 #include <map>
 #include <cmath>
+#include <vector>
+#include <cstdint>
+
+#include "cgal-sys/src/lib.rs.h"
 
 using namespace rust;
 
@@ -55,9 +60,30 @@ PolyhedronSet3::PolyhedronSet3() : nef(Nef_polyhedron::EMPTY) {}
 PolyhedronSet3::PolyhedronSet3(const Nef_polyhedron& n) : nef(n) {}
 
 bool PolyhedronSet3::is_empty() const  { return nef.is_empty(); }
-void PolyhedronSet3::join(const PolyhedronSet3& o)         { nef += o.nef; }
-void PolyhedronSet3::difference(const PolyhedronSet3& o)   { nef -= o.nef; }
-void PolyhedronSet3::intersection(const PolyhedronSet3& o) { nef *= o.nef; }
+
+void PolyhedronSet3::join(const PolyhedronSet3& o) {
+    try {
+        nef += o.nef;
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("CGAL Join failed: ") + e.what());
+    }
+}
+
+void PolyhedronSet3::difference(const PolyhedronSet3& o) {
+    try {
+        nef -= o.nef;
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("CGAL Difference failed: ") + e.what());
+    }
+}
+
+void PolyhedronSet3::intersection(const PolyhedronSet3& o) {
+    try {
+        nef *= o.nef;
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("CGAL Intersection failed: ") + e.what());
+    }
+}
 
 static void extract_mesh(const Nef_polyhedron& nef, Polyhedron& P) {
     if (nef.is_empty()) return;
@@ -66,9 +92,11 @@ static void extract_mesh(const Nef_polyhedron& nef, Polyhedron& P) {
     CGAL::convert_nef_polyhedron_to_polygon_mesh(nef, P);
 }
 
-Mesh3D PolyhedronSet3::get_mesh() const {
-    Mesh3D out;
-    if (nef.is_empty()) return out;
+void PolyhedronSet3::get_mesh_data(
+    std::vector<double>&   out_vertices,
+    std::vector<uint32_t>& out_triangles) const
+{
+    if (nef.is_empty()) return;
 
     Polyhedron P;
     extract_mesh(nef, P);
@@ -79,9 +107,9 @@ Mesh3D PolyhedronSet3::get_mesh() const {
     uint32_t idx = 0;
     for (auto vi = P.vertices_begin(); vi != P.vertices_end(); ++vi) {
         auto& p = vi->point();
-        out.vertices.push_back({CGAL::to_double(p.x()),
-                                CGAL::to_double(p.y()),
-                                CGAL::to_double(p.z())});
+        out_vertices.push_back(CGAL::to_double(p.x()));
+        out_vertices.push_back(CGAL::to_double(p.y()));
+        out_vertices.push_back(CGAL::to_double(p.z()));
         vmap[vi] = idx++;
     }
 
@@ -93,39 +121,58 @@ Mesh3D PolyhedronSet3::get_mesh() const {
         uint32_t v1  = vmap[h->vertex()]; ++h;
         while (h != h_start) {
             uint32_t v2 = vmap[h->vertex()];
-            out.triangles.push_back(v0);
-            out.triangles.push_back(v1);
-            out.triangles.push_back(v2);
+            out_triangles.push_back(v0);
+            out_triangles.push_back(v1);
+            out_triangles.push_back(v2);
             v1 = v2;
             ++h;
         }
     }
+}
+
+// CXX Bridge Helpers
+Mesh3D PolyhedronSet3::get_mesh() const {
+    std::vector<double> v;
+    std::vector<uint32_t> t;
+    get_mesh_data(v, t);
+    
+    Mesh3D out;
+    for (size_t i = 0; i < v.size(); i += 3) {
+        out.vertices.push_back({v[i], v[i+1], v[i+2]});
+    }
+    out.triangles.reserve(t.size());
+    for (auto val : t) {
+        out.triangles.push_back(val);
+    }
     return out;
 }
 
-void PolyhedronSet3::get_mesh(
-    std::vector<Point3D>&  out_vertices,
-    std::vector<uint32_t>& out_triangles) const
-{
-    Mesh3D mesh = get_mesh();
-    for (auto& v : mesh.vertices) out_vertices.push_back(v);
-    for (auto& t : mesh.triangles) out_triangles.push_back(t);
-}
-
 std::unique_ptr<std::vector<Point3D>> PolyhedronSet3::get_vertices() const {
-    auto verts = std::make_unique<std::vector<Point3D>>();
-    std::vector<uint32_t> dummy_tris;
-    get_mesh(*verts, dummy_tris);
-    return verts;
+    std::vector<double> v;
+    std::vector<uint32_t> t;
+    get_mesh_data(v, t);
+    auto out = std::make_unique<std::vector<Point3D>>();
+    for (size_t i = 0; i < v.size(); i += 3) {
+        out->push_back({v[i], v[i+1], v[i+2]});
+    }
+    return out;
 }
 
 std::unique_ptr<std::vector<uint32_t>> PolyhedronSet3::get_triangles() const {
-    std::vector<Point3D> dummy_verts;
-    auto tris = std::make_unique<std::vector<uint32_t>>();
-    get_mesh(dummy_verts, *tris);
-    return tris;
+    std::vector<double> v;
+    auto t = std::make_unique<std::vector<uint32_t>>();
+    get_mesh_data(v, *t);
+    return t;
 }
 
+
+// ---------------------------------------------------------------------------
+// CXX Bridge free-function wrappers
+// (CXX expects free functions for non-self-method declarations)
+// ---------------------------------------------------------------------------
+Mesh3D get_mesh(const PolyhedronSet3& set) { return set.get_mesh(); }
+std::unique_ptr<std::vector<Point3D>> get_vertices(const PolyhedronSet3& set) { return set.get_vertices(); }
+std::unique_ptr<std::vector<uint32_t>> get_triangles(const PolyhedronSet3& set) { return set.get_triangles(); }
 
 // ---------------------------------------------------------------------------
 // Factory helpers
@@ -142,38 +189,18 @@ std::unique_ptr<PolyhedronSet3> create_cuboid(
     const Rational& cx, const Rational& cy, const Rational& cz,
     const Rational& width, const Rational& height, const Rational& depth)
 {
-    double hw = CGAL::to_double(width)  / 2.0;
-    double hh = CGAL::to_double(height) / 2.0;
-    double hd = CGAL::to_double(depth)  / 2.0;
-    double ox = CGAL::to_double(cx);
-    double oy = CGAL::to_double(cy);
-    double oz = CGAL::to_double(cz);
+    double ox = CGAL::to_double(cx), oy = CGAL::to_double(cy), oz = CGAL::to_double(cz);
+    double hw = CGAL::to_double(width)/2.0, hh = CGAL::to_double(height)/2.0, hd = CGAL::to_double(depth)/2.0;
 
-    MeshBuilder<HDS> b;
-    b.vertices = {
-        Point_3(ox-hw, oy-hh, oz-hd), // 0
-        Point_3(ox+hw, oy-hh, oz-hd), // 1
-        Point_3(ox+hw, oy+hh, oz-hd), // 2
-        Point_3(ox-hw, oy+hh, oz-hd), // 3
-        Point_3(ox-hw, oy-hh, oz+hd), // 4
-        Point_3(ox+hw, oy-hh, oz+hd), // 5
-        Point_3(ox+hw, oy+hh, oz+hd), // 6
-        Point_3(ox-hw, oy+hh, oz+hd), // 7
-    };
-    // CCW winding = outward normals
-    // CCW winding = outward normals
-    // Using triangles instead of quads to guarantee planarity
-    b.faces = {
-        {0,3,2}, {0,2,1}, // front  -z
-        {4,5,6}, {4,6,7}, // back   +z
-        {0,1,5}, {0,5,4}, // bottom -y
-        {3,7,6}, {3,6,2}, // top    +y
-        {0,4,7}, {0,7,3}, // left   -x
-        {1,2,6}, {1,6,5}, // right  +x
+    std::vector<Point_3> pts = {
+        Point_3(ox-hw, oy-hh, oz-hd), Point_3(ox+hw, oy-hh, oz-hd),
+        Point_3(ox+hw, oy+hh, oz-hd), Point_3(ox-hw, oy+hh, oz-hd),
+        Point_3(ox-hw, oy-hh, oz+hd), Point_3(ox+hw, oy-hh, oz+hd),
+        Point_3(ox+hw, oy+hh, oz+hd), Point_3(ox-hw, oy+hh, oz+hd),
     };
 
     Polyhedron P;
-    P.delegate(b);
+    CGAL::convex_hull_3(pts.begin(), pts.end(), P);
     return std::make_unique<PolyhedronSet3>(polyhedron_to_nef(P));
 }
 
@@ -222,25 +249,15 @@ std::unique_ptr<PolyhedronSet3> create_approximated_cone(
     if (num_segments < 3) num_segments = 16;
     uint32_t N = num_segments;
 
-    MeshBuilder<HDS> b;
-    b.vertices.push_back(Point_3(ox, oy, oz + h/2.0)); // 0: apex
+    std::vector<Point_3> pts;
+    pts.push_back(Point_3(ox, oy, oz + h/2.0)); // apex
     for (uint32_t i = 0; i < N; ++i) {
         double th = 2.0 * M_PI * i / N;
-        b.vertices.push_back(Point_3(ox + r*std::cos(th), oy + r*std::sin(th), oz - h/2.0));
-    }
-    b.vertices.push_back(Point_3(ox, oy, oz - h/2.0)); // N+1: base centre
-
-    uint32_t apex = 0, bctr = N + 1;
-    for (uint32_t i = 0; i < N; ++i) {
-        uint32_t a = i + 1, bv = (i + 1) % N + 1;
-        // Winding fixed: (Apex, Curr, Next) for side faces
-        b.faces.push_back({apex, a, bv});  // side
-        // Winding fixed: (Center, Next, Curr) for base cap (normal points -Z)
-        b.faces.push_back({bctr, bv, a});  // base cap
+        pts.push_back(Point_3(ox + r*std::cos(th), oy + r*std::sin(th), oz - h/2.0));
     }
 
     Polyhedron P;
-    P.delegate(b);
+    CGAL::convex_hull_3(pts.begin(), pts.end(), P);
     return std::make_unique<PolyhedronSet3>(polyhedron_to_nef(P));
 }
 
@@ -251,36 +268,19 @@ std::unique_ptr<PolyhedronSet3> create_approximated_cylinder(
 {
     double ox = CGAL::to_double(cx), oy = CGAL::to_double(cy), oz = CGAL::to_double(cz);
     double r  = CGAL::to_double(radius), h = CGAL::to_double(height);
-    if (num_segments < 3) num_segments = 16;
+    if (num_segments < 3) num_segments = 32;
     uint32_t N = num_segments;
 
-    MeshBuilder<HDS> b;
-    // [2i]   = bottom ring vertex i
-    // [2i+1] = top ring vertex i
-    // [2N]   = bottom centre,  [2N+1] = top centre
+    std::vector<Point_3> pts;
     for (uint32_t i = 0; i < N; ++i) {
         double th = 2.0 * M_PI * i / N;
         double x = ox + r*std::cos(th), y = oy + r*std::sin(th);
-        b.vertices.push_back(Point_3(x, y, oz - h/2.0));
-        b.vertices.push_back(Point_3(x, y, oz + h/2.0));
-    }
-    b.vertices.push_back(Point_3(ox, oy, oz - h/2.0));     // 2N
-    b.vertices.push_back(Point_3(ox, oy, oz + h/2.0)); // 2N+1
-
-    uint32_t bctr = 2*N, tctr = 2*N+1;
-    for (uint32_t i = 0; i < N; ++i) {
-        uint32_t b0 = 2*i,       b1 = 2*((i+1)%N);
-        uint32_t t0 = 2*i+1,     t1 = 2*((i+1)%N)+1;
-        // Side quad split into triangles
-        b.faces.push_back({b0, b1, t1});
-        b.faces.push_back({b0, t1, t0});
-        // Caps
-        b.faces.push_back({bctr, b1, b0});   // bottom cap
-        b.faces.push_back({tctr, t0, t1});   // top cap
+        pts.push_back(Point_3(x, y, oz - h/2.0));
+        pts.push_back(Point_3(x, y, oz + h/2.0));
     }
 
     Polyhedron P;
-    P.delegate(b);
+    CGAL::convex_hull_3(pts.begin(), pts.end(), P);
     return std::make_unique<PolyhedronSet3>(polyhedron_to_nef(P));
 }
 

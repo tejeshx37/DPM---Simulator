@@ -9,6 +9,7 @@ pub fn plot(id_source: impl Hash) -> Plot<'static> {
         .data_aspect(1.0)
         .show_axes(Vec2b::FALSE)
         .allow_boxed_zoom(false)
+        .boxed_zoom_pointer_button(egui::PointerButton::Extra1)
         .allow_drag(false)
         .allow_double_click_reset(false)
 }

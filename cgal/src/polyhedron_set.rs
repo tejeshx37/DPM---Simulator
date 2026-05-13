@@ -41,19 +41,28 @@ impl PolyhedronSet {
         self.inner.is_empty()
     }
 
-    pub fn join(&mut self, other: &Self) {
+    pub fn join(&mut self, other: &Self) -> Result<(), String> {
         let _lock = crate::lock();
-        self.inner.pin_mut().join(&other.inner);
+        self.inner
+            .pin_mut()
+            .join(&other.inner)
+            .map_err(|e| e.to_string())
     }
 
-    pub fn difference(&mut self, other: &Self) {
+    pub fn difference(&mut self, other: &Self) -> Result<(), String> {
         let _lock = crate::lock();
-        self.inner.pin_mut().difference(&other.inner);
+        self.inner
+            .pin_mut()
+            .difference(&other.inner)
+            .map_err(|e| e.to_string())
     }
 
-    pub fn intersection(&mut self, other: &Self) {
+    pub fn intersection(&mut self, other: &Self) -> Result<(), String> {
         let _lock = crate::lock();
-        self.inner.pin_mut().intersection(&other.inner);
+        self.inner
+            .pin_mut()
+            .intersection(&other.inner)
+            .map_err(|e| e.to_string())
     }
 
     pub fn get_vertices(&self) -> Vec<RationalPoint3> {
@@ -67,12 +76,12 @@ impl PolyhedronSet {
 
     pub fn get_mesh(&self) -> cgal_sys::Mesh3D {
         let _lock = crate::lock();
-        self.inner.get_mesh()
+        cgal_sys::get_mesh(&self.inner)
     }
 
     pub fn get_mesh_rational(&self) -> (Vec<RationalPoint3>, Vec<u32>) {
         let _lock = crate::lock();
-        let mesh = self.inner.get_mesh();
+        let mesh = cgal_sys::get_mesh(&self.inner);
         let vertices = mesh.vertices.iter()
             .map(|p| {
                 RationalPoint3::new(
@@ -111,7 +120,7 @@ impl PolyhedronSet {
             if self.is_empty() {
                 self.inner = cgal_sys::clone_polyhedron_set(&other.inner);
             } else {
-                self.join(&other);
+                self.join(&other)?;
             }
         }
         Ok(())
@@ -123,7 +132,7 @@ impl PolyhedronSet {
         }
         let other = Self::from_kind(kind)?;
         if let Some(other) = other {
-            self.difference(&other);
+            self.difference(&other)?;
         }
         Ok(())
     }

@@ -222,10 +222,20 @@ impl<T: RefreshToken> Worker<T> {
                     };
                     match polygon_set.process_input(&input) {
                         Ok(()) => {
+                            // Also validate 3D
+                            let mut full_inputs = stacks.forward.clone();
+                            full_inputs.push(input.clone());
+                            if let Err(err) = cgal::polyhedron_set::PolyhedronSet::from_inputs(&full_inputs) {
+                                send_err!(format!("3D Geometry Error: {}", err));
+                                continue;
+                            }
                             stacks.forward.push(input);
                             stacks.backward.clear();
                         }
-                        Err(err) => send_err!(err),
+                        Err(err) => {
+                            send_err!(err);
+                            continue;
+                        }
                     }
                     send_state!(State::Generated(Snapshot::from(&stacks)));
                 }
@@ -250,7 +260,16 @@ impl<T: RefreshToken> Worker<T> {
                         }
                     };
                     match polygon_set.process_input(&input) {
-                        Ok(()) => stacks.forward.push(input),
+                        Ok(()) => {
+                            // Also validate 3D
+                            let mut full_inputs = stacks.forward.clone();
+                            full_inputs.push(input.clone());
+                            if let Err(err) = cgal::polyhedron_set::PolyhedronSet::from_inputs(&full_inputs) {
+                                send_err!(format!("3D Geometry Error: {}", err));
+                                continue;
+                            }
+                            stacks.forward.push(input);
+                        }
                         Err(err) => {
                             stacks.backward.push(input);
                             send_err!(err);

@@ -1,8 +1,10 @@
+#define CGAL_USE_CORE
 #include "num.h"
-#include <iostream>
 #include <sstream>
-#include <vector>
 #include <cmath>
+#include <boost/multiprecision/number.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
+#include <boost/multiprecision/gmp.hpp>
 
 template <>
 std::unique_ptr<Algebraic> abs(const Algebraic &value)
@@ -58,7 +60,7 @@ std::unique_ptr<Integer> create_integer(const Integer &value)
 std::unique_ptr<Integer> pow_integer(const Integer &base, const std::uint32_t exp)
 {
     Integer result;
-    mpz_pow_ui(result.get_mp(), base.get_mp(), exp);
+    CORE::power(result, base, exp);
     return std::make_unique<Integer>(std::move(result));
 }
 
