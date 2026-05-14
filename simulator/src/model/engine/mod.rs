@@ -235,22 +235,33 @@ impl<T: RefreshToken> Engine<T> {
             })
             .collect();
 
-        // Apply 3D face-plane conditions on top: check each node's coordinate
+        // Apply 3D face-plane conditions on top (same order as the rule list; parallel per vertex).
         let mut point_boundary_conditions = point_boundary_conditions;
         if !face_3d_conditions.is_empty() {
             let vertices = mesh.triangulation_data().vertices();
-            for (idx, vertex) in vertices.iter().enumerate() {
-                let p = vertex.point();
-                let pos = [p.x as f64, p.y as f64, p.z as f64];
-                for fc in face_3d_conditions {
-                    if fc.matches(pos) {
-                        let entry = point_boundary_conditions
-                            .entry(idx)
-                            .or_insert(BoundaryCondition::Free);
-                        let merged = entry.clone() + fc.condition.clone();
-                        *entry = merged;
+            let updates: Vec<(usize, BoundaryCondition)> = (0..vertices.len())
+                .into_par_iter()
+                .filter_map(|idx| {
+                    let p = vertices[idx].point();
+                    let pos = [p.x as f64, p.y as f64, p.z as f64];
+                    let mut it = face_3d_conditions
+                        .iter()
+                        .filter(|fc| fc.matches(pos))
+                        .peekable();
+                    if it.peek().is_none() {
+                        return None;
                     }
-                }
+                    let base = point_boundary_conditions
+                        .get(&idx)
+                        .cloned()
+                        .unwrap_or_default();
+                    let merged = it.fold(base, |acc, fc| acc + fc.condition.clone());
+                    Some((idx, merged))
+                })
+                .collect();
+
+            for (idx, merged) in updates {
+                point_boundary_conditions.insert(idx, merged);
             }
         }
 

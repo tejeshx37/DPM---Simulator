@@ -473,14 +473,14 @@ impl Page {
             Response::Cancel => None,
         }
     }
-    fn add_physics_preview_sidebar(&self, ui: &mut Ui) {
+    fn add_physics_preview_sidebar(&mut self, ui: &mut Ui) {
         puffin::profile_function!();
-        
-        // Smooth slide-in on first render
-        let sidebar_anim = ui.ctx().animate_bool_with_time(
-            egui::Id::new("meshing_sidebar_anim"), true, 0.3
-        );
-        let sidebar_width = egui::lerp(0.0..=280.0, sidebar_anim);
+
+        // Fixed width: animating the panel width changes the central plot rect every frame.
+        // With `data_aspect(1.0)`, egui_plot then adjusts bounds each frame (`set_aspect_by_changing_axis`),
+        // which reads as unwanted zoom; combined with a resizing plot, pointer deltas can look like drags
+        // and spin the 3D view.
+        const SIDEBAR_WIDTH: f32 = 280.0;
 
         let glass_fill = if ui.visuals().dark_mode {
             egui::Color32::from_rgba_unmultiplied(14, 14, 22, 215)
@@ -490,8 +490,8 @@ impl Page {
 
         egui::SidePanel::left("meshing_physics_preview")
             .resizable(true)
-            .default_width(sidebar_width)
-            .min_width(sidebar_width.min(280.0))
+            .default_width(SIDEBAR_WIDTH)
+            .min_width(200.0)
             .frame(egui::Frame::none()
                 .fill(glass_fill)
                 .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(99, 102, 241, 25)))
@@ -513,7 +513,9 @@ impl Page {
                     super::premium::premium_card(ui, "🎮 Viewport", |ui| {
                         ui.vertical_centered_justified(|ui| {
                             if ui.button("⟳ Reset Camera View").clicked() {
-                                // Handled in reset view button in bottom panel too
+                                self.rotation_x = -0.5;
+                                self.rotation_y = 0.5;
+                                self.needs_reset = true;
                             }
                         });
                         ui.add_space(4.0);

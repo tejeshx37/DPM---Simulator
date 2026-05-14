@@ -45,7 +45,8 @@ fn main() {
         stress_col2:         [0.0; 4],
         is_broken:           0,
         strain_energy_bits:  0,
-        _padding:            [0; 2],
+        is_inverted:         0,
+        _padding:            0,
     }];
 
     // Isotropic steel-like material, no failure criteria
@@ -68,7 +69,7 @@ fn main() {
 
     println!("Dispatching two-pass GPU compute...");
     let (node_forces, element_results) =
-        pipeline.execute(nodes.len(), &nodes, &elements, &material);
+        pipeline.execute(nodes.len(), &nodes, &elements, &material, true);
 
     println!("\n=== Node Forces ===");
     for (i, f) in node_forces.iter().enumerate() {

@@ -192,8 +192,12 @@ impl ComputePipeline {
             bind_group_layouts: &[&update_bgl], push_constant_ranges: &[],
         });
         let update_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Update Elements Pipeline"), layout: Some(&update_pl),
-            module: &update_shader, entry_point: "main",
+            label: Some("Update Elements Pipeline"),
+            layout: Some(&update_pl),
+            module: &update_shader,
+            entry_point: "main",
+            compilation_options: Default::default(),
+            cache: None,
         });
 
         // ── Pass 2 shader & pipeline ─────────────────────────────────────────
@@ -241,8 +245,12 @@ impl ComputePipeline {
             bind_group_layouts: &[&force_bgl], push_constant_ranges: &[],
         });
         let force_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Force Computation Pipeline"), layout: Some(&force_pl),
-            module: &force_shader, entry_point: "main",
+            label: Some("Force Computation Pipeline"),
+            layout: Some(&force_pl),
+            module: &force_shader,
+            entry_point: "main",
+            compilation_options: Default::default(),
+            cache: None,
         });
 
         Some(Self { device, queue, update_pipeline, update_bgl, force_pipeline, force_bgl })

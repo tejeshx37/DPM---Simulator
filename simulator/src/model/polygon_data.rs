@@ -101,4 +101,23 @@ impl PolygonData {
             }
         })
     }
+
+    /// Axis-aligned bounds of the 3D preview mesh (from polyhedron inputs), if any.
+    /// Used for boundary-condition presets (min/max faces per axis).
+    pub fn polyhedron_vertex_axis_bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        let geom = self.plot_geometry_3d();
+        let mut iter = geom.vertices.iter().copied();
+        let first = iter.next()?;
+        let mut min = first;
+        let mut max = first;
+        for v in iter {
+            min[0] = min[0].min(v[0]);
+            min[1] = min[1].min(v[1]);
+            min[2] = min[2].min(v[2]);
+            max[0] = max[0].max(v[0]);
+            max[1] = max[1].max(v[1]);
+            max[2] = max[2].max(v[2]);
+        }
+        Some((min, max))
+    }
 }

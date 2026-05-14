@@ -106,7 +106,7 @@ fn test_gpu_cpu_parity() {
     };
 
     let (gpu_forces, element_results) =
-        pipeline.execute(4, &gpu_nodes, &gpu_elements, &gpu_material);
+        pipeline.execute(4, &gpu_nodes, &gpu_elements, &gpu_material, true);
 
     let gpu_stress = element_results[0].stress;
     

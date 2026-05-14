@@ -214,11 +214,9 @@ impl Page {
             }
         };
 
-        // Smooth slide-in on first render
-        let sidebar_anim = ui.ctx().animate_bool_with_time(
-            egui::Id::new("bc_sidebar_anim"), true, 0.3
-        );
-        let sidebar_width = egui::lerp(0.0..=280.0, sidebar_anim);
+        // Fixed width: animating width resizes the central plot every frame and fights `data_aspect`,
+        // which looks like spurious zoom and can inject bogus drag deltas into the 3D view.
+        const BC_SIDEBAR_WIDTH: f32 = 280.0;
 
         let side_glass_fill = if ui.visuals().dark_mode {
             egui::Color32::from_rgba_unmultiplied(14, 14, 22, 215)
@@ -228,8 +226,8 @@ impl Page {
 
         SidePanel::left("boundary_selection_panel")
             .resizable(true)
-            .default_width(sidebar_width)
-            .min_width(sidebar_width.min(280.0))
+            .default_width(BC_SIDEBAR_WIDTH)
+            .min_width(200.0)
             .frame(egui::Frame::none()
                 .fill(side_glass_fill)
                 .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(99, 102, 241, 25)))
@@ -669,6 +667,53 @@ impl Page {
                     .fixed_decimals(4),
             );
         });
+
+        if let Some((min_b, max_b)) = self
+            .configurator
+            .polygon_data()
+            .polyhedron_vertex_axis_bounds()
+        {
+            let axis_i = match self.pending_face.axis {
+                Axis3D::X => 0usize,
+                Axis3D::Y => 1,
+                Axis3D::Z => 2,
+            };
+            ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new("Snap to shape:").small());
+                if ui
+                    .small_button("Min (≤)")
+                    .on_hover_text(
+                        "Use the lowest coordinate on the selected axis — sets rule to ≤ (min face).",
+                    )
+                    .clicked()
+                {
+                    self.pending_face.comparison = PlaneComparison::LessOrEqual;
+                    self.pending_face.value = min_b[axis_i];
+                }
+                if ui
+                    .small_button("Max (≥)")
+                    .on_hover_text(
+                        "Use the highest coordinate on the selected axis — sets rule to ≥ (max face).",
+                    )
+                    .clicked()
+                {
+                    self.pending_face.comparison = PlaneComparison::GreaterOrEqual;
+                    self.pending_face.value = max_b[axis_i];
+                }
+                if ui
+                    .small_button("Mid (≈)")
+                    .on_hover_text(
+                        "Use the midpoint on this axis with approximate equality; ε set to ~1% of extent.",
+                    )
+                    .clicked()
+                {
+                    self.pending_face.comparison = PlaneComparison::Approx;
+                    self.pending_face.value = 0.5 * (min_b[axis_i] + max_b[axis_i]);
+                    let extent = (max_b[axis_i] - min_b[axis_i]).abs();
+                    self.pending_face.epsilon = (extent * 0.01).max(1e-9);
+                }
+            });
+        }
 
         // Tolerance (only for Approx)
         if matches!(self.pending_face.comparison, PlaneComparison::Approx) {
