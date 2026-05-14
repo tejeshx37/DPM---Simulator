@@ -19,6 +19,16 @@ use strum::IntoEnumIterator;
 
 const VIOLET: Color32 = Color32::from_rgb(0x8F, 0x00, 0xFF);
 
+/// Where to apply the result of the shared “Set boundary conditions” dialog.
+#[derive(Debug, Clone, Copy)]
+enum BcDialogTarget {
+    Curve(BoundaryId),
+    /// New 3D face-plane rule (writes `pending_face.condition`).
+    FacePending,
+    /// Edit an existing 3D rule’s `condition` by index.
+    FaceEdit(usize),
+}
+
 #[derive(Debug)]
 struct SplitData {
     value: f64,
@@ -104,6 +114,8 @@ pub struct Page {
     configurator: Box<Configurator>,
     boundary_state: Box<BoundaryState>,
     dialog_state: Option<Box<dialog::State>>,
+    /// Set when `dialog_state` is opened so OK/Cancel can route correctly.
+    bc_dialog_target: Option<BcDialogTarget>,
     input_error: Option<String>,
     pending_face: FacePlaneCondition,
     rotation_x: f32,
@@ -136,6 +148,7 @@ where
             )),
             configurator: Box::new(configurator),
             dialog_state: None,
+            bc_dialog_target: None,
             input_error: None,
             pending_face: FacePlaneCondition::default(),
             rotation_x: -0.5,
@@ -252,20 +265,37 @@ impl Page {
         let Some(mut state) = self.dialog_state.take() else {
             return Response::Noop(self);
         };
+        let target = self.bc_dialog_target;
         match dialog::show(&mut state, ui.ctx()) {
             dialog::Response::Noop => {
                 self.dialog_state = Some(state);
             }
             dialog::Response::Conditions(result) => match result {
-                Ok(condition) => self
-                    .configurator
-                    .set_condition(self.boundary_state.id, condition),
+                Ok(condition) => match target {
+                    Some(BcDialogTarget::Curve(id)) => {
+                        self.configurator.set_condition(id, condition);
+                        self.bc_dialog_target = None;
+                    }
+                    Some(BcDialogTarget::FacePending) => {
+                        self.pending_face.condition = condition;
+                        self.bc_dialog_target = None;
+                    }
+                    Some(BcDialogTarget::FaceEdit(i)) => {
+                        if let Some(fc) = self.configurator.face_3d_conditions_mut().get_mut(i) {
+                            fc.condition = condition;
+                        }
+                        self.bc_dialog_target = None;
+                    }
+                    None => {}
+                },
                 Err(err) => {
                     self.input_error = err.into();
                     self.dialog_state = Some(state);
                 }
             },
-            dialog::Response::Cancel => {}
+            dialog::Response::Cancel => {
+                self.bc_dialog_target = None;
+            }
         }
         Response::Noop(self)
     }
@@ -315,6 +345,7 @@ impl Page {
                     ui.label(format!("ID: {}", *self.boundary_state.id.curve_id() + 1));
                     let resp = ui.add(egui::Button::new("➕ Set Conditions").fill(ui.visuals().selection.bg_fill).rounding(egui::Rounding::same(6.0)));
                     if resp.clicked() {
+                        self.bc_dialog_target = Some(BcDialogTarget::Curve(self.boundary_state.id));
                         self.dialog_state = Some(Box::new(conditions.into()));
                     }
                 });
@@ -590,14 +621,14 @@ impl Page {
 
     fn add_face_3d_panel(&mut self, ui: &mut Ui) {
         ui.label(
-            egui::RichText::new("3D Face Boundary Conditions")
+            egui::RichText::new("3D boundary conditions")
                 .heading()
                 .strong(),
         );
         ui.add_space(4.0);
         ui.label(
             egui::RichText::new(
-                "Each rule applies a condition to all mesh nodes where the chosen axis coordinate satisfies the comparison. Use this to constrain faces of 3D shapes.",
+                "Pick a bounding-box face (or tune a custom half-space below), then set Free / Force / Displacement — same as in 2D. Each rule applies to all volume-mesh nodes that lie in that region.",
             )
             .small()
             .weak(),
@@ -607,9 +638,9 @@ impl Page {
         // --- Existing rules ---
         let conditions = self.configurator.face_3d_conditions().clone();
         if conditions.is_empty() {
-            ui.label(egui::RichText::new("No face conditions defined yet.").small().weak());
+            ui.label(egui::RichText::new("No rules yet — everything is free.").small().weak());
         } else {
-            ui.label(egui::RichText::new("Active Rules:").strong());
+            ui.label(egui::RichText::new("Active rules").strong());
             ScrollArea::vertical()
                 .id_salt("face3d_list")
                 .max_height(180.0)
@@ -620,11 +651,21 @@ impl Page {
                             let cond_tag = match &fc.condition {
                                 BoundaryCondition::Free => "Free",
                                 BoundaryCondition::Force(_) => "Force",
-                                BoundaryCondition::Displacement(_) => "Fixed",
+                                BoundaryCondition::Displacement(_) => "Displacement",
                             };
-                            ui.label(egui::RichText::new(
-                                format!("[{}] {}", cond_tag, fc.label())
-                            ).small());
+                            ui.label(
+                                egui::RichText::new(format!("[{}] {}", cond_tag, fc.label()))
+                                    .small(),
+                            );
+                            if ui
+                                .small_button("✎")
+                                .on_hover_text("Edit condition (Free / Force / Displacement)")
+                                .clicked()
+                            {
+                                self.bc_dialog_target = Some(BcDialogTarget::FaceEdit(i));
+                                self.dialog_state =
+                                    Some(Box::new((&fc.condition).into()));
+                            }
                             if ui.small_button("🗑").clicked() {
                                 to_remove = Some(i);
                             }
@@ -639,120 +680,193 @@ impl Page {
         ui.add_space(10.0);
         ui.separator();
         ui.add_space(6.0);
-        ui.label(egui::RichText::new("New Rule").strong());
+        ui.label(egui::RichText::new("New rule").strong());
+        ui.add_space(6.0);
+
+        ui.label(egui::RichText::new("Face on bounding box").small().strong());
         ui.add_space(4.0);
-
-        // Axis
-        ui.horizontal(|ui| {
-            ui.label("Axis:");
-            for axis in Axis3D::iter() {
-                ui.radio_value(&mut self.pending_face.axis, axis, axis.to_string());
-            }
-        });
-
-        // Comparison
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Rule:");
-            for cmp in PlaneComparison::iter() {
-                ui.radio_value(&mut self.pending_face.comparison, cmp, cmp.to_string());
-            }
-        });
-
-        // Threshold value
-        ui.horizontal(|ui| {
-            ui.label("Threshold:");
-            ui.add(
-                egui::DragValue::new(&mut self.pending_face.value)
-                    .speed(0.01)
-                    .fixed_decimals(4),
-            );
-        });
-
         if let Some((min_b, max_b)) = self
             .configurator
             .polygon_data()
             .polyhedron_vertex_axis_bounds()
         {
-            let axis_i = match self.pending_face.axis {
-                Axis3D::X => 0usize,
-                Axis3D::Y => 1,
-                Axis3D::Z => 2,
+            let preset = |ui: &mut Ui,
+                          pending: &mut FacePlaneCondition,
+                          label: &str,
+                          axis: Axis3D,
+                          cmp: PlaneComparison,
+                          value: f64,
+                          hover: &str| {
+                if ui
+                    .small_button(label)
+                    .on_hover_text(hover)
+                    .clicked()
+                {
+                    pending.axis = axis;
+                    pending.comparison = cmp;
+                    pending.value = value;
+                }
             };
             ui.horizontal_wrapped(|ui| {
-                ui.label(egui::RichText::new("Snap to shape:").small());
-                if ui
-                    .small_button("Min (≤)")
-                    .on_hover_text(
-                        "Use the lowest coordinate on the selected axis — sets rule to ≤ (min face).",
-                    )
-                    .clicked()
-                {
-                    self.pending_face.comparison = PlaneComparison::LessOrEqual;
-                    self.pending_face.value = min_b[axis_i];
-                }
-                if ui
-                    .small_button("Max (≥)")
-                    .on_hover_text(
-                        "Use the highest coordinate on the selected axis — sets rule to ≥ (max face).",
-                    )
-                    .clicked()
-                {
-                    self.pending_face.comparison = PlaneComparison::GreaterOrEqual;
-                    self.pending_face.value = max_b[axis_i];
-                }
-                if ui
-                    .small_button("Mid (≈)")
-                    .on_hover_text(
-                        "Use the midpoint on this axis with approximate equality; ε set to ~1% of extent.",
-                    )
-                    .clicked()
-                {
-                    self.pending_face.comparison = PlaneComparison::Approx;
-                    self.pending_face.value = 0.5 * (min_b[axis_i] + max_b[axis_i]);
-                    let extent = (max_b[axis_i] - min_b[axis_i]).abs();
-                    self.pending_face.epsilon = (extent * 0.01).max(1e-9);
-                }
-            });
-        }
-
-        // Tolerance (only for Approx)
-        if matches!(self.pending_face.comparison, PlaneComparison::Approx) {
-            ui.horizontal(|ui| {
-                ui.label("Tolerance ε:");
-                ui.add(
-                    egui::DragValue::new(&mut self.pending_face.epsilon)
-                        .speed(0.0001)
-                        .fixed_decimals(6),
+                preset(
+                    ui,
+                    &mut self.pending_face,
+                    "Min X",
+                    Axis3D::X,
+                    PlaneComparison::LessOrEqual,
+                    min_b[0],
+                    "Low-X side of the shape's axis-aligned bounding box",
+                );
+                preset(
+                    ui,
+                    &mut self.pending_face,
+                    "Max X",
+                    Axis3D::X,
+                    PlaneComparison::GreaterOrEqual,
+                    max_b[0],
+                    "High-X side of the bounding box",
+                );
+                preset(
+                    ui,
+                    &mut self.pending_face,
+                    "Min Y",
+                    Axis3D::Y,
+                    PlaneComparison::LessOrEqual,
+                    min_b[1],
+                    "Low-Y side of the bounding box",
+                );
+                preset(
+                    ui,
+                    &mut self.pending_face,
+                    "Max Y",
+                    Axis3D::Y,
+                    PlaneComparison::GreaterOrEqual,
+                    max_b[1],
+                    "High-Y side of the bounding box",
+                );
+                preset(
+                    ui,
+                    &mut self.pending_face,
+                    "Min Z",
+                    Axis3D::Z,
+                    PlaneComparison::LessOrEqual,
+                    min_b[2],
+                    "Low-Z side of the bounding box",
+                );
+                preset(
+                    ui,
+                    &mut self.pending_face,
+                    "Max Z",
+                    Axis3D::Z,
+                    PlaneComparison::GreaterOrEqual,
+                    max_b[2],
+                    "High-Z side of the bounding box",
                 );
             });
+            ui.horizontal_wrapped(|ui| {
+                let mid_face = |ui: &mut Ui,
+                                pending: &mut FacePlaneCondition,
+                                label: &str,
+                                axis: Axis3D,
+                                axis_i: usize| {
+                    if ui
+                        .small_button(label)
+                        .on_hover_text(
+                            "Mid-plane through the bounding box on this axis (approximate match, ε ≈ 1% of extent)",
+                        )
+                        .clicked()
+                    {
+                        let extent = (max_b[axis_i] - min_b[axis_i]).abs();
+                        pending.axis = axis;
+                        pending.comparison = PlaneComparison::Approx;
+                        pending.value = 0.5 * (min_b[axis_i] + max_b[axis_i]);
+                        pending.epsilon = (extent * 0.01).max(1e-9);
+                    }
+                };
+                mid_face(ui, &mut self.pending_face, "Mid X", Axis3D::X, 0);
+                mid_face(ui, &mut self.pending_face, "Mid Y", Axis3D::Y, 1);
+                mid_face(ui, &mut self.pending_face, "Mid Z", Axis3D::Z, 2);
+            });
+        } else {
+            ui.label(
+                egui::RichText::new("No 3D geometry bounds — use Advanced below.")
+                    .small()
+                    .weak(),
+            );
         }
 
-        // Condition type
-        ui.add_space(4.0);
-        ui.label(egui::RichText::new("Apply:").strong());
-        let is_free = matches!(self.pending_face.condition, BoundaryCondition::Free);
-        let is_fixed = matches!(self.pending_face.condition, BoundaryCondition::Displacement(_));
-        ui.horizontal(|ui| {
-            if ui.radio(is_free, "Free").clicked() {
-                self.pending_face.condition = BoundaryCondition::Free;
+        ui.add_space(6.0);
+        ui.label(
+            egui::RichText::new(format!("Region: {}", self.pending_face.label()))
+                .small(),
+        );
+
+        ui.add_space(8.0);
+        super::premium::premium_card(ui, "⚙ Condition", |ui| {
+            ui.set_width(ui.available_width());
+            let cond = &self.pending_face.condition;
+            ui.label(match cond {
+                BoundaryCondition::Free => {
+                    egui::RichText::new("⚪ Free (no constraints)").small()
+                }
+                BoundaryCondition::Force(_) => {
+                    egui::RichText::new("🟢 Force").small().color(egui::Color32::GREEN)
+                }
+                BoundaryCondition::Displacement(_) => {
+                    egui::RichText::new("🟣 Displacement").small().color(VIOLET)
+                }
+            });
+            ui.add_space(6.0);
+            if ui
+                .add(
+                    egui::Button::new("➕ Set conditions…")
+                        .fill(ui.visuals().selection.bg_fill)
+                        .rounding(egui::Rounding::same(6.0)),
+                )
+                .clicked()
+            {
+                self.bc_dialog_target = Some(BcDialogTarget::FacePending);
+                self.dialog_state = Some(Box::new(cond.into()));
             }
-            if ui.radio(is_fixed, "Fixed (zero displacement)").clicked() {
-                use cpd::boundary_condition::Displacement;
-                use function::{Function, piecewise_linear::{Piece, PiecewiseLinear}};
-                use nalgebra::Vector3;
-                let z = || Function::Piecewise(PiecewiseLinear::builder()
-                    .piece(Piece::builder().end_value(0.0).width(1.0e9).build())
-                    .build());
-                self.pending_face.condition = BoundaryCondition::Displacement(
-                    Displacement::XYZ(Vector3::new(z(), z(), z())),
+        });
+
+        ui.collapsing("Advanced: custom half-space", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Axis:");
+                for axis in Axis3D::iter() {
+                    ui.radio_value(&mut self.pending_face.axis, axis, axis.to_string());
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Comparison:");
+                for cmp in PlaneComparison::iter() {
+                    ui.radio_value(&mut self.pending_face.comparison, cmp, cmp.to_string());
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Threshold:");
+                ui.add(
+                    egui::DragValue::new(&mut self.pending_face.value)
+                        .speed(0.01)
+                        .fixed_decimals(4),
                 );
+            });
+            if matches!(self.pending_face.comparison, PlaneComparison::Approx) {
+                ui.horizontal(|ui| {
+                    ui.label("Tolerance ε:");
+                    ui.add(
+                        egui::DragValue::new(&mut self.pending_face.epsilon)
+                            .speed(0.0001)
+                            .fixed_decimals(6),
+                    );
+                });
             }
         });
 
         ui.add_space(8.0);
         if ui
             .add(
-                egui::Button::new("➕ Add Rule")
+                egui::Button::new("➕ Add rule")
                     .fill(ui.visuals().selection.bg_fill)
                     .rounding(egui::Rounding::same(6.0)),
             )
