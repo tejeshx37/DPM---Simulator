@@ -184,13 +184,24 @@ impl Page {
             }
         }
 
+        let solid_bounds = (!self.mesh_generator.polygon_data().polyhedron_set().is_empty())
+            .then(|| self.mesh_generator.polygon_data().polyhedron_vertex_axis_bounds())
+            .flatten();
         let data = Self::input_dialog_and_error_ui(
             ui,
             &mut self.dialog_state,
             &mut self.input_error,
+            solid_bounds,
         );
         if let Some(data) = data {
-            self.mesh_generator.generate(data.num_points, data.size_bound_override, data.thickness, None).expect("Worker thread is active");
+            self.mesh_generator
+                .generate(
+                    data.num_points,
+                    data.size_bound_override,
+                    data.thickness,
+                    data.seeding_config,
+                )
+                .expect("Worker thread is active");
         }
 
         let should_run = matches!(self.state_receiver.data, State::Mesh(_))
@@ -447,6 +458,7 @@ impl Page {
         ui: &mut Ui,
         dialog_state: &mut Option<dialog::State>,
         input_error: &mut Option<String>,
+        solid_bounds: Option<([f64; 3], [f64; 3])>,
     ) -> Option<dialog::Data> {
         if let Some(err) = input_error.as_ref() {
             if error_dialog::show(err, ui.ctx()).closed() {
@@ -457,7 +469,7 @@ impl Page {
 
         let mut state = dialog_state.take()?;
         use dialog::Response;
-        match dialog::show(&mut state, ui.ctx()) {
+        match dialog::show(&mut state, ui.ctx(), solid_bounds) {
             Response::Noop => {
                 *dialog_state = Some(state);
                 None

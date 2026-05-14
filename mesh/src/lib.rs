@@ -1,4 +1,6 @@
-use cgal::{curve::Curve, triangulation, BoundaryId, PolygonWithHoles};
+mod polyhedron_seeding;
+
+use cgal::{curve::Curve, triangulation, BoundaryId, PolygonWithHoles, PolyhedronSet};
 use derive_getters::Getters;
 use fxhash::{FxHashMap, FxHashSet};
 use nalgebra::Vector3;
@@ -86,6 +88,28 @@ impl Region {
                 (center - r_vec, center + r_vec)
             }
         }
+    }
+
+    /// Bounds used when generating candidate seed points inside a 3D solid.
+    /// `PolygonZone` is treated as an extruded prism spanning the solid's Z extent.
+    pub fn seeding_bounds_3d(&self, z_poly_min: f64, z_poly_max: f64) -> (Vector3<f64>, Vector3<f64>) {
+        let (mut mn, mut mx) = self.bounds();
+        match self {
+            Region::PolygonZone { .. } => {
+                mn.z = z_poly_min;
+                mx.z = z_poly_max;
+            }
+            Region::BoundingBox { .. } | Region::SDF { .. } => {
+                mn.z = mn.z.max(z_poly_min);
+                mx.z = mx.z.min(z_poly_max);
+                if mn.z > mx.z {
+                    let mid = 0.5 * (z_poly_min + z_poly_max);
+                    mn.z = mid;
+                    mx.z = mid;
+                }
+            }
+        }
+        (mn, mx)
     }
 }
 
@@ -287,9 +311,10 @@ where
 
 impl Mesh {
     pub fn generate_from_polyhedron(
-        polyhedron: &cgal::PolyhedronSet,
+        polyhedron: &PolyhedronSet,
         num_points: u32,
         size_bound_override: Option<f64>,
+        seeding_config: Option<SeedingConfig>,
         mut state_callback: Callback,
     ) -> Result<Self, String> {
         state_callback.invoke(State::Init);
@@ -318,10 +343,14 @@ impl Mesh {
         
         let size_bound = size_bound_override.unwrap_or(total_perimeter / (num_points as f64).max(1.0));
         
-        let point_cloud: Vec<Vector3<f64>> = vertices
+        let mut point_cloud: Vec<Vector3<f64>> = vertices
             .into_iter()
             .map(|p| Vector3::new(to_f64(&p.x), to_f64(&p.y), to_f64(&p.z)))
             .collect();
+
+        if let Some(ref cfg) = seeding_config {
+            polyhedron_seeding::append_volumetric_seeding(&mut point_cloud, polyhedron, cfg);
+        }
 
         Self::triangulate_and_build(point_cloud, size_bound, state_callback)
     }

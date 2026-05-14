@@ -202,6 +202,7 @@ impl<T: RefreshToken> Worker<T> {
                     &polyhedron_set,
                     input.num_points,
                     input.size_bound_override,
+                    input.seeding_config.clone(),
                     Callback::from(|state| send_state_discard_err!(State::GeneratingMesh(state))),
                 )
             } else {
