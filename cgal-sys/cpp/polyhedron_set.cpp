@@ -1,4 +1,3 @@
-#define CGAL_USE_CORE
 #include "polyhedron_set.h"
 #include <CGAL/Nef_polyhedron_3.h>
 #include <CGAL/Polyhedron_3.h>
@@ -60,6 +59,7 @@ PolyhedronSet3::PolyhedronSet3() : nef(Nef_polyhedron::EMPTY) {}
 PolyhedronSet3::PolyhedronSet3(const Nef_polyhedron& n) : nef(n) {}
 
 bool PolyhedronSet3::is_empty() const  { return nef.is_empty(); }
+bool PolyhedronSet3::is_valid() const  { return nef.is_valid(); }
 
 void PolyhedronSet3::join(const PolyhedronSet3& o) {
     try {
@@ -93,47 +93,57 @@ static void extract_mesh(const Nef_polyhedron& nef, Polyhedron& P) {
 }
 
 void PolyhedronSet3::get_mesh_data(
-    std::vector<double>&   out_vertices,
-    std::vector<uint32_t>& out_triangles) const
+    std::vector<double>&        out_vertices,
+    std::vector<std::uint32_t>& out_triangles) const
 {
-    if (nef.is_empty()) return;
+    try {
+        if (nef.is_empty()) return;
+        if (!nef.is_valid()) throw std::runtime_error("Nef polyhedron is in an invalid state");
 
-    Polyhedron P;
-    extract_mesh(nef, P);
-    CGAL::Polygon_mesh_processing::triangulate_faces(P);
+        Polyhedron P;
+        extract_mesh(nef, P);
+        CGAL::Polygon_mesh_processing::triangulate_faces(P);
 
-    // Build vertex list and index map in one pass
-    std::map<Polyhedron::Vertex_const_handle, uint32_t> vmap;
-    uint32_t idx = 0;
-    for (auto vi = P.vertices_begin(); vi != P.vertices_end(); ++vi) {
-        auto& p = vi->point();
-        out_vertices.push_back(CGAL::to_double(p.x()));
-        out_vertices.push_back(CGAL::to_double(p.y()));
-        out_vertices.push_back(CGAL::to_double(p.z()));
-        vmap[vi] = idx++;
-    }
-
-    // Fan-triangulate every face
-    for (auto fi = P.facets_begin(); fi != P.facets_end(); ++fi) {
-        auto h       = fi->facet_begin();
-        auto h_start = h;
-        uint32_t v0  = vmap[h->vertex()]; ++h;
-        uint32_t v1  = vmap[h->vertex()]; ++h;
-        while (h != h_start) {
-            uint32_t v2 = vmap[h->vertex()];
-            out_triangles.push_back(v0);
-            out_triangles.push_back(v1);
-            out_triangles.push_back(v2);
-            v1 = v2;
-            ++h;
+        // Build vertex list and index map in one pass
+        std::map<Polyhedron::Vertex_const_handle, std::uint32_t> vmap;
+        std::uint32_t idx = 0;
+        for (auto vi = P.vertices_begin(); vi != P.vertices_end(); ++vi) {
+            auto& p = vi->point();
+            out_vertices.push_back(CGAL::to_double(p.x()));
+            out_vertices.push_back(CGAL::to_double(p.y()));
+            out_vertices.push_back(CGAL::to_double(p.z()));
+            vmap[vi] = idx++;
         }
+
+        // Fan-triangulate every face
+        for (auto fi = P.facets_begin(); fi != P.facets_end(); ++fi) {
+            auto h       = fi->facet_begin();
+            auto h_start = h;
+            if (vmap.find(h->vertex()) == vmap.end()) continue;
+            std::uint32_t v0  = vmap[h->vertex()]; ++h;
+            if (vmap.find(h->vertex()) == vmap.end()) continue;
+            std::uint32_t v1  = vmap[h->vertex()]; ++h;
+            while (h != h_start) {
+                if (vmap.find(h->vertex()) == vmap.end()) break;
+                std::uint32_t v2 = vmap[h->vertex()];
+                out_triangles.push_back(v0);
+                out_triangles.push_back(v1);
+                out_triangles.push_back(v2);
+                v1 = v2;
+                ++h;
+            }
+        }
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Mesh extraction failed: ") + e.what());
+    } catch (...) {
+        throw std::runtime_error("Mesh extraction failed with an unknown error");
     }
 }
 
 // CXX Bridge Helpers
 Mesh3D PolyhedronSet3::get_mesh() const {
     std::vector<double> v;
-    std::vector<uint32_t> t;
+    std::vector<std::uint32_t> t;
     get_mesh_data(v, t);
     
     Mesh3D out;
@@ -149,7 +159,7 @@ Mesh3D PolyhedronSet3::get_mesh() const {
 
 std::unique_ptr<std::vector<Point3D>> PolyhedronSet3::get_vertices() const {
     std::vector<double> v;
-    std::vector<uint32_t> t;
+    std::vector<std::uint32_t> t;
     get_mesh_data(v, t);
     auto out = std::make_unique<std::vector<Point3D>>();
     for (size_t i = 0; i < v.size(); i += 3) {
@@ -158,9 +168,9 @@ std::unique_ptr<std::vector<Point3D>> PolyhedronSet3::get_vertices() const {
     return out;
 }
 
-std::unique_ptr<std::vector<uint32_t>> PolyhedronSet3::get_triangles() const {
+std::unique_ptr<std::vector<std::uint32_t>> PolyhedronSet3::get_triangles() const {
     std::vector<double> v;
-    auto t = std::make_unique<std::vector<uint32_t>>();
+    auto t = std::make_unique<std::vector<std::uint32_t>>();
     get_mesh_data(v, *t);
     return t;
 }
@@ -172,7 +182,7 @@ std::unique_ptr<std::vector<uint32_t>> PolyhedronSet3::get_triangles() const {
 // ---------------------------------------------------------------------------
 Mesh3D get_mesh(const PolyhedronSet3& set) { return set.get_mesh(); }
 std::unique_ptr<std::vector<Point3D>> get_vertices(const PolyhedronSet3& set) { return set.get_vertices(); }
-std::unique_ptr<std::vector<uint32_t>> get_triangles(const PolyhedronSet3& set) { return set.get_triangles(); }
+std::unique_ptr<std::vector<std::uint32_t>> get_triangles(const PolyhedronSet3& set) { return set.get_triangles(); }
 
 // ---------------------------------------------------------------------------
 // Factory helpers
@@ -200,7 +210,7 @@ std::unique_ptr<PolyhedronSet3> create_cuboid(
     };
 
     Polyhedron P;
-    CGAL::convex_hull_3(pts.begin(), pts.end(), P);
+    CGAL::convex_hull_3(pts.begin(), pts.end(), P, NefKernel());
     return std::make_unique<PolyhedronSet3>(polyhedron_to_nef(P));
 }
 
@@ -235,7 +245,7 @@ std::unique_ptr<PolyhedronSet3> create_approximated_sphere(
     pts.push_back(Point_3(ox, oy, oz + r)); // north pole
 
     Polyhedron P;
-    CGAL::convex_hull_3(pts.begin(), pts.end(), P);
+    CGAL::convex_hull_3(pts.begin(), pts.end(), P, NefKernel());
     return std::make_unique<PolyhedronSet3>(polyhedron_to_nef(P));
 }
 
@@ -257,7 +267,7 @@ std::unique_ptr<PolyhedronSet3> create_approximated_cone(
     }
 
     Polyhedron P;
-    CGAL::convex_hull_3(pts.begin(), pts.end(), P);
+    CGAL::convex_hull_3(pts.begin(), pts.end(), P, NefKernel());
     return std::make_unique<PolyhedronSet3>(polyhedron_to_nef(P));
 }
 
@@ -280,7 +290,7 @@ std::unique_ptr<PolyhedronSet3> create_approximated_cylinder(
     }
 
     Polyhedron P;
-    CGAL::convex_hull_3(pts.begin(), pts.end(), P);
+    CGAL::convex_hull_3(pts.begin(), pts.end(), P, NefKernel());
     return std::make_unique<PolyhedronSet3>(polyhedron_to_nef(P));
 }
 

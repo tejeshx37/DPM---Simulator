@@ -6,26 +6,29 @@ use nalgebra::Vector3;
 
 const EPS: f64 = 1e-12;
 
-pub fn polyhedron_vertices_f64(polyhedron: &PolyhedronSet) -> Vec<Vector3<f64>> {
-    use cgal::num::Algebraic;
+pub fn polyhedron_vertices_f64(polyhedron: &PolyhedronSet) -> Result<Vec<Vector3<f64>>, String> {
     polyhedron
-        .get_vertices()
+        .get_vertices()?
         .into_iter()
         .map(|p| {
-            Vector3::new(
-                f64::from(Algebraic::from(&p.x)),
-                f64::from(Algebraic::from(&p.y)),
-                f64::from(Algebraic::from(&p.z)),
-            )
+            Vector3::new(p.x, p.y, p.z)
         })
-        .collect()
+        .collect::<Vec<_>>()
+        .pipe(Ok)
 }
 
-pub fn polyhedron_triangle_indices(polyhedron: &PolyhedronSet) -> Vec<[usize; 3]> {
-    let tri = polyhedron.get_triangles();
-    tri.chunks_exact(3)
+pub fn polyhedron_triangle_indices(polyhedron: &PolyhedronSet) -> Result<Vec<[usize; 3]>, String> {
+    let tri = polyhedron.get_triangles()?;
+    Ok(tri.chunks_exact(3)
         .map(|c| [c[0] as usize, c[1] as usize, c[2] as usize])
-        .collect()
+        .collect())
+}
+
+trait Pipe {
+    fn pipe<F, R>(self, f: F) -> R where F: FnOnce(Self) -> R, Self: Sized;
+}
+impl<T> Pipe for T {
+    fn pipe<F, R>(self, f: F) -> R where F: FnOnce(Self) -> R, Self: Sized { f(self) }
 }
 
 fn axis_aligned_bounds(verts: &[Vector3<f64>]) -> Option<(Vector3<f64>, Vector3<f64>)> {
@@ -113,14 +116,14 @@ pub fn append_volumetric_seeding(
     point_cloud: &mut Vec<Vector3<f64>>,
     polyhedron: &PolyhedronSet,
     config: &crate::SeedingConfig,
-) {
-    let verts = polyhedron_vertices_f64(polyhedron);
-    let tris = polyhedron_triangle_indices(polyhedron);
+) -> Result<(), String> {
+    let verts = polyhedron_vertices_f64(polyhedron)?;
+    let tris = polyhedron_triangle_indices(polyhedron)?;
     if verts.is_empty() || tris.is_empty() {
-        return;
+        return Ok(());
     }
     let Some((solid_min, solid_max)) = axis_aligned_bounds(&verts) else {
-        return;
+        return Ok(());
     };
     let z_lo = solid_min.z;
     let z_hi = solid_max.z;
@@ -149,4 +152,5 @@ pub fn append_volumetric_seeding(
             }
         }
     }
+    Ok(())
 }

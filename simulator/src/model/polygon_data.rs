@@ -80,7 +80,13 @@ impl PolygonData {
                 return Geometry3D::default();
             }
             let _lock = cgal::lock();
-            let mesh = phs.get_mesh();
+            let mesh = match phs.get_mesh() {
+                Ok(m) => m,
+                Err(err) => {
+                    log::error!("Failed to extract 3D mesh: {err}");
+                    return Geometry3D::default();
+                }
+            };
             
             let pts: Vec<[f64; 3]> = mesh.vertices.iter().map(|v| {
                 [v.x, v.y, v.z]
@@ -94,7 +100,6 @@ impl PolygonData {
                 tris.push([v0, v1, v2]);
             }
 
-            
             Geometry3D {
                 vertices: pts,
                 triangles: tris,

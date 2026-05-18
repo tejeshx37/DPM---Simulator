@@ -1,0 +1,13 @@
+CompileFlags:
+  Add:
+    - -std=c++17
+    - -I/opt/homebrew/include
+    - "-I/Users/mtejeshx37/DPM - Simulator - Linux/cgal-sys/include"
+    - "-I/Users/mtejeshx37/DPM - Simulator - Linux/cgal-sys/cpp"
+    - -DCGAL_USE_CORE
+    - -DCORE_UNIT_TYPE=double
+    - -Wno-macro-redefined
+    - -target
+    - arm64-apple-macos11
+    - -isysroot
+    - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk

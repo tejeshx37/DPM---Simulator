@@ -41,6 +41,11 @@ impl PolyhedronSet {
         self.inner.is_empty()
     }
 
+    pub fn is_valid(&self) -> bool {
+        let _lock = crate::lock();
+        self.inner.is_valid()
+    }
+
     pub fn join(&mut self, other: &Self) -> Result<(), String> {
         let _lock = crate::lock();
         self.inner
@@ -65,23 +70,28 @@ impl PolyhedronSet {
             .map_err(|e| e.to_string())
     }
 
-    pub fn get_vertices(&self) -> Vec<RationalPoint3> {
-        self.get_mesh_rational().0
-    }
-
-    pub fn get_triangles(&self) -> Vec<u32> {
-        self.get_mesh().triangles
-    }
-
-
-    pub fn get_mesh(&self) -> cgal_sys::Mesh3D {
+    pub fn get_vertices(&self) -> Result<Vec<cgal_sys::Point3D>, String> {
         let _lock = crate::lock();
-        cgal_sys::get_mesh(&self.inner)
+        cgal_sys::get_vertices(&self.inner)
+            .map(|v| v.iter().map(|p| p.clone()).collect())
+            .map_err(|err: cxx::Exception| err.to_string())
     }
 
-    pub fn get_mesh_rational(&self) -> (Vec<RationalPoint3>, Vec<u32>) {
+    pub fn get_triangles(&self) -> Result<Vec<u32>, String> {
         let _lock = crate::lock();
-        let mesh = cgal_sys::get_mesh(&self.inner);
+        cgal_sys::get_triangles(&self.inner)
+            .map(|v| v.iter().copied().collect())
+            .map_err(|err: cxx::Exception| err.to_string())
+    }
+
+    pub fn get_mesh(&self) -> Result<cgal_sys::Mesh3D, String> {
+        let _lock = crate::lock();
+        cgal_sys::get_mesh(&self.inner).map_err(|err| err.to_string())
+    }
+
+    pub fn get_mesh_rational(&self) -> Result<(Vec<RationalPoint3>, Vec<u32>), String> {
+        let _lock = crate::lock();
+        let mesh = cgal_sys::get_mesh(&self.inner).map_err(|e| e.to_string())?;
         let vertices = mesh.vertices.iter()
             .map(|p| {
                 RationalPoint3::new(
@@ -91,7 +101,7 @@ impl PolyhedronSet {
                 )
             })
             .collect();
-        (vertices, mesh.triangles)
+        Ok((vertices, mesh.triangles))
     }
 
 }

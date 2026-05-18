@@ -319,7 +319,7 @@ impl Mesh {
     ) -> Result<Self, String> {
         state_callback.invoke(State::Init);
 
-        let vertices = polyhedron.get_vertices();
+        let vertices = polyhedron.get_vertices()?;
         if vertices.is_empty() {
             return Err(String::from("Polyhedron is empty. Cannot generate mesh."));
         }
@@ -327,17 +327,16 @@ impl Mesh {
         state_callback.invoke(State::GeneratingConstraints);
 
         // Approximate total size for bounding
-        let triangles = polyhedron.get_triangles();
+        let triangles = polyhedron.get_triangles()?;
         let mut total_perimeter = 0.0;
-        let to_f64 = |r: &cgal::num::Rational| f64::from(cgal::num::Algebraic::from(r));
         
         for t in triangles.chunks_exact(3) {
             let p1 = &vertices[t[0] as usize];
             let p2 = &vertices[t[1] as usize];
             let p3 = &vertices[t[2] as usize];
-            let v1 = Vector3::new(to_f64(&p1.x), to_f64(&p1.y), to_f64(&p1.z));
-            let v2 = Vector3::new(to_f64(&p2.x), to_f64(&p2.y), to_f64(&p2.z));
-            let v3 = Vector3::new(to_f64(&p3.x), to_f64(&p3.y), to_f64(&p3.z));
+            let v1 = Vector3::new(p1.x, p1.y, p1.z);
+            let v2 = Vector3::new(p2.x, p2.y, p2.z);
+            let v3 = Vector3::new(p3.x, p3.y, p3.z);
             total_perimeter += (v1 - v2).magnitude() + (v2 - v3).magnitude() + (v3 - v1).magnitude();
         }
         
@@ -345,11 +344,11 @@ impl Mesh {
         
         let mut point_cloud: Vec<Vector3<f64>> = vertices
             .into_iter()
-            .map(|p| Vector3::new(to_f64(&p.x), to_f64(&p.y), to_f64(&p.z)))
+            .map(|p| Vector3::new(p.x, p.y, p.z))
             .collect();
 
         if let Some(ref cfg) = seeding_config {
-            polyhedron_seeding::append_volumetric_seeding(&mut point_cloud, polyhedron, cfg);
+            polyhedron_seeding::append_volumetric_seeding(&mut point_cloud, polyhedron, cfg)?;
         }
 
         Self::triangulate_and_build(point_cloud, size_bound, state_callback)

@@ -45,6 +45,7 @@ fn main() -> anyhow::Result<()> {
             &boost_sys::headers(),
             &gmp_include,
         ])
+        .define("CGAL_USE_CORE", None)
         .std("c++17")
         .try_compile("cgal")
         .context("CGAL wrapper compilation failed")?;

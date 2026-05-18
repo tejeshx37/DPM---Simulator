@@ -32,10 +32,10 @@ mod ffi {
         type Vertex;
         #[rust_name = "get_point"]
         #[namespace = ""]
-        fn first(vertex: &Vertex) -> &EpickPoint;
+        fn first_ref(vertex: &Vertex) -> &EpickPoint;
         #[rust_name = "get_incident_faces"]
         #[namespace = ""]
-        fn second(vertex: &Vertex) -> &CxxVector<usize>;
+        fn second_ref(vertex: &Vertex) -> &CxxVector<usize>;
 
         type Data;
         fn faces(self: &Data) -> &CxxVector<Face>;

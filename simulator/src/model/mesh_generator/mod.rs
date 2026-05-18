@@ -197,7 +197,8 @@ impl<T: RefreshToken> Worker<T> {
                 }
             };
             
-            let result = if polyhedron_set.get_vertices().len() > 0 {
+            let vertices = polyhedron_set.get_vertices();
+            let result = if vertices.as_ref().map_or(false, |v| !v.is_empty()) {
                 Mesh::generate_from_polyhedron(
                     &polyhedron_set,
                     input.num_points,

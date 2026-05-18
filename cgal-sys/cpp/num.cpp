@@ -1,4 +1,3 @@
-#define CGAL_USE_CORE
 #include "num.h"
 #include <sstream>
 #include <cmath>

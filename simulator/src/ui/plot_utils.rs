@@ -101,9 +101,12 @@ pub fn plot_solid_geometry(
     let mut render_triangles = Vec::with_capacity(geom_3d.triangles.len());
 
     for tri in &geom_3d.triangles {
-        let v1 = geom_3d.vertices[tri[0]];
-        let v2 = geom_3d.vertices[tri[1]];
-        let v3 = geom_3d.vertices[tri[2]];
+        // Safe access to vertices with bounds checking to prevent panics
+        let v1 = geom_3d.vertices.get(tri[0]);
+        let v2 = geom_3d.vertices.get(tri[1]);
+        let v3 = geom_3d.vertices.get(tri[2]);
+        
+        let (Some(v1), Some(v2), Some(v3)) = (v1, v2, v3) else { continue; };
         
         let e1 = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]];
         let e2 = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]];
@@ -117,9 +120,11 @@ pub fn plot_solid_geometry(
             normal[0] /= len; normal[1] /= len; normal[2] /= len;
         }
 
-        let p1_3d = projected_vertices[tri[0]];
-        let p2_3d = projected_vertices[tri[1]];
-        let p3_3d = projected_vertices[tri[2]];
+        let p1_3d = projected_vertices.get(tri[0]);
+        let p2_3d = projected_vertices.get(tri[1]);
+        let p3_3d = projected_vertices.get(tri[2]);
+        
+        let (Some(p1_3d), Some(p2_3d), Some(p3_3d)) = (p1_3d, p2_3d, p3_3d) else { continue; };
         
         let p1 = [p1_3d[0], p1_3d[1]];
         let p2 = [p2_3d[0], p2_3d[1]];
@@ -131,7 +136,6 @@ pub fn plot_solid_geometry(
         if normal_z < 0.0 { continue; } 
 
         let dot = (normal[0] * light_dir[0] + normal[1] * light_dir[1] + normal[2] * light_dir[2]) as f32;
-        // Stronger diffuse and ambient for better visibility of joined shapes
         let intensity = (0.3f32 + 0.7f32 * dot.max(0.0f32)).clamp(0.0f32, 1.0f32);
         
         let [r, g, b, _] = base_color.to_array();
@@ -151,10 +155,25 @@ pub fn plot_solid_geometry(
     // Sort back-to-front (smaller Z is further away in our projection)
     render_triangles.sort_by(|a, b| a.z_avg.partial_cmp(&b.z_avg).unwrap_or(std::cmp::Ordering::Equal));
     
+    // Batch render using egui::Mesh for maximum performance
+    let transform = ui.transform();
+    let mut mesh = egui::Mesh::default();
+    
     for tri in render_triangles {
-        ui.polygon(egui_plot::Polygon::new(vec![tri.p1, tri.p2, tri.p3])
-            .fill_color(tri.color)
-            .stroke(egui::Stroke::new(0.2, tri.color))); // Thinner stroke for even cleaner look
+        let p1 = transform.position_from_point(&egui_plot::PlotPoint::new(tri.p1[0], tri.p1[1]));
+        let p2 = transform.position_from_point(&egui_plot::PlotPoint::new(tri.p2[0], tri.p2[1]));
+        let p3 = transform.position_from_point(&egui_plot::PlotPoint::new(tri.p3[0], tri.p3[1]));
+        
+        let n = mesh.vertices.len() as u32;
+        mesh.vertices.push(egui::epaint::Vertex { pos: p1, uv: egui::Pos2::ZERO, color: tri.color });
+        mesh.vertices.push(egui::epaint::Vertex { pos: p2, uv: egui::Pos2::ZERO, color: tri.color });
+        mesh.vertices.push(egui::epaint::Vertex { pos: p3, uv: egui::Pos2::ZERO, color: tri.color });
+        mesh.indices.extend_from_slice(&[n, n + 1, n + 2]);
+    }
+    
+    if !mesh.is_empty() {
+        let painter = ui.ctx().layer_painter(ui.response().layer_id).with_clip_rect(ui.response().rect);
+        painter.add(egui::Shape::mesh(mesh));
     }
     
     // Always render 2D shapes as outlines on the plane if they exist
