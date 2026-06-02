@@ -1,4 +1,4 @@
-use cgal::{PolygonSet, PolygonSetInput, PolygonSetInputKind, RationalPoint};
+use cgal::{PolygonSet, PolygonSetInputKind, RationalPoint};
 use mesh::{Mesh, Callback};
 
 fn main() {
@@ -27,10 +27,8 @@ fn main() {
     match mesh {
         Ok(m) => {
             println!("Mesh generated.");
-            let (nodes, faces) = match m.triangulation_data() {
-                cgal::TriangulationDataRef::TwoD(t) => (t.vertices().len(), t.faces().len()),
-                cgal::TriangulationDataRef::ThreeD(t) => (t.vertices().len(), t.faces().len()),
-            };
+            let nodes = m.triangulation_data().vertices().len();
+            let faces = m.triangulation_data().faces().len();
             println!("Nodes: {}", nodes);
             println!("Elements: {}", faces);
         },

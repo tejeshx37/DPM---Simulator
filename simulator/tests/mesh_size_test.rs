@@ -1,11 +1,11 @@
-use mesh::{Mesh, Callback};
-use cgal::{PolygonSet, PolygonSetInputKind, RationalPoint, PolygonSetInput};
+use mesh::Mesh;
+use cgal::{PolygonSet, PolygonSetInputKind, RationalPoint3, PolygonSetInput};
 
 #[test]
 fn test_mesh_size() {
     let mut set = PolygonSet::default();
     let sphere = PolygonSetInputKind::Sphere {
-        center: RationalPoint::new(0, 0),
+        center: RationalPoint3::new(0, 0, 0),
         radius: 1.into(),
     };
     set.process_input(&PolygonSetInput::Join(sphere.clone())).unwrap();
